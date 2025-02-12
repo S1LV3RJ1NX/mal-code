@@ -1,0 +1,14 @@
+.DS_Store
+.ipynb_checkpoints/
+.cursorrules
+hello.py
+old/
+chapters_data/
+.venv/
+wandb/
+test.py
+out.txt
+*.pt
+*.env
+__pycache__/
+book/

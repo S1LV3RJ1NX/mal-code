@@ -1,0 +1,11 @@
+Enter English text: india must work for it's independence
+Hindi translation: इंडिया को इसकी आजादी के लिए काम करना चाहिए
+
+Enter English text: i love my country
+Hindi translation: मेरे देश से प्यार करते हैं
+
+Enter English text: prime minister modi is giving grants for space programs
+Hindi translation: प्रधानमंत्री मोदी अंतरिक्ष कार्यक्रमों के लिए अनुदान दे रहे हैं
+
+Enter English text: People are sad and angry.
+Hindi translation: लोगों में दुख और गुस्सा है।
