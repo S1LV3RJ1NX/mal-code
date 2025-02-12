@@ -23,3 +23,7 @@ source .venv/bin/activate
 Specific chapters have their own README with instructions on how to run the code.
 
 For example, to run the code for chapter 1, go to the `ch1` folder and follow the instructions in the README.
+
+## Chapters
+
+- [Chapter 1: A Journey into the Heart of Transformers](./ch1/README.md)
