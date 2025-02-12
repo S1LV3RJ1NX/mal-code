@@ -1,5 +1,7 @@
 # Chapter 1: A Journey into the Heart of Transformers
 
+_Note:_ Make sure to follow the instructions in the [README](../README.md) to install the dependencies.
+
 ## Overview
 
 The goal of this chapter is to build a translation system, based on transformer architecture, that is capable of translating from English to Hindi. To achieve this goal we shall implement, the paper - [Attention is all you need](./01_attention_is_all_you_need.pdf)
