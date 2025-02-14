@@ -25,12 +25,32 @@ python train.py
 
 If you want to use pre-trained weights, download the weights from [Hugging Face](https://huggingface.co/s1lv3rj1nx/ch1) and place them in the `ch1/runs/weights` directory. Specifically, you can download `tmodel_09.pt` from the repo and place it in the `ch1/runs/weights` directory.
 
+The loss curve post training is shown in the figure below.
+
+![Loss Curve](./images/ch1_17_loss.png)
+
 ## Inference
 
 To do inference, run the following command:
 
 ```bash
 python inference.py
+```
+
+Sample outputs are shown below:
+
+```
+Enter English text: india must work for it's independence
+Hindi translation: इंडिया को इसकी आजादी के लिए काम करना चाहिए
+
+Enter English text: i love my country
+Hindi translation: मेरे देश से प्यार करते हैं
+
+Enter English text: prime minister modi is giving grants for space programs
+Hindi translation: प्रधानमंत्री मोदी अंतरिक्ष कार्यक्रमों के लिए अनुदान दे रहे हैं
+
+Enter English text: People are sad and angry.
+Hindi translation: लोगों में दुख और गुस्सा है।
 ```
 
 ## Citation
