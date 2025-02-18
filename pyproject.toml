@@ -16,6 +16,7 @@ dependencies = [
     "scikit-learn>=1.6.1",
     "seaborn>=0.13.2",
     "tensorboard>=2.18.0",
+    "tiktoken>=0.9.0",
     "tokenizers>=0.21.0",
     "torchmetrics>=1.6.1",
     "torchvision>=0.20.1",
