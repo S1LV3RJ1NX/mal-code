@@ -1,11 +1,12 @@
-from components.common import torch, nn, np
+from components.common import nn, np, torch
+
 
 class MultiHeadAttention(nn.Module):
     """Multi-head attention mechanism that allows parallel attention computations.
-    
-    This implements the multi-head attention mechanism from "Attention is All You Need" with 
+
+    This implements the multi-head attention mechanism from "Attention is All You Need" with
     modifications for causal/autoregressive attention as used in GPT models. The attention
-    mechanism projects inputs into query, key and value representations, splits them into 
+    mechanism projects inputs into query, key and value representations, splits them into
     multiple heads, computes scaled dot-product attention independently for each head, and
     combines the results.
 
@@ -27,7 +28,7 @@ class MultiHeadAttention(nn.Module):
     def __init__(
         self,
         d_in: int,
-        d_out: int, 
+        d_out: int,
         dropout: float,
         num_heads: int,
         qkv_bias: bool = False,
@@ -42,7 +43,7 @@ class MultiHeadAttention(nn.Module):
         # Learned projection matrices for query, key, value
         # Each projects from d_in to d_out with optional bias
         self.W_query = nn.Linear(d_in, d_out, bias=qkv_bias)  # Query projection (Wq)
-        self.W_key = nn.Linear(d_in, d_out, bias=qkv_bias)    # Key projection (Wk) 
+        self.W_key = nn.Linear(d_in, d_out, bias=qkv_bias)  # Key projection (Wk)
         self.W_value = nn.Linear(d_in, d_out, bias=qkv_bias)  # Value projection (Wv)
 
         # Final projection to combine heads back to d_out dimension
@@ -70,7 +71,12 @@ class MultiHeadAttention(nn.Module):
         return mask == 0
 
     @staticmethod
-    def calculate_attention_scores(queries: torch.Tensor, keys: torch.Tensor, mask: torch.Tensor, dropout: nn.Dropout = None):
+    def calculate_attention_scores(
+        queries: torch.Tensor,
+        keys: torch.Tensor,
+        mask: torch.Tensor,
+        dropout: nn.Dropout = None,
+    ):
         """Computes scaled dot-product attention scores and weights.
 
         Implements the attention mechanism: Attention(Q,K,V) = softmax(QK^T/sqrt(d_k))
@@ -128,9 +134,9 @@ class MultiHeadAttention(nn.Module):
         mask = self.causal_mask(num_tokens, device=query.device)
 
         # Project inputs to Q,K,V representations
-        keys = self.W_key(key)        # (batch, num_tokens, d_out)
+        keys = self.W_key(key)  # (batch, num_tokens, d_out)
         queries = self.W_query(query)  # (batch, num_tokens, d_out)
-        values = self.W_value(value)   # (batch, num_tokens, d_out)
+        values = self.W_value(value)  # (batch, num_tokens, d_out)
 
         # Reshape to split into multiple heads
         # (batch, num_tokens, d_out) -> (batch, num_tokens, num_heads, head_dim)
@@ -152,7 +158,7 @@ class MultiHeadAttention(nn.Module):
         attention_weights = MultiHeadAttention.calculate_attention_scores(
             queries, keys, mask, self.dropout
         )
-        
+
         # Apply attention weights to values
         # (batch, num_heads, num_tokens, num_tokens) @ (batch, num_heads, num_tokens, head_dim)
         # -> (batch, num_heads, num_tokens, head_dim)

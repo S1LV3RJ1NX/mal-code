@@ -13,3 +13,4 @@ out.txt
 __pycache__/
 book/
 pretrained-checkpoints/
+book_images/

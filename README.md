@@ -27,3 +27,4 @@ For example, to run the code for chapter 1, go to the `ch1` folder and follow th
 ## Chapters
 
 - [Chapter 1: A Journey into the Heart of Transformers](./ch1/README.md)
+- [Chapter 2: LLMs are Unsupervised Multitask Learners](./ch2/README.md)

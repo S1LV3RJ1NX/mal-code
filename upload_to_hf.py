@@ -55,6 +55,8 @@ def upload_models_to_hf(repo_id: str, weights_dir: str):
 if __name__ == "__main__":
     # Example usage
     repo_id = "s1lv3rj1nx/ch2"  # Replace with your repo
-    weights_dir = "/home/jovyan/mal-code/ch2/checkpoints/"  # Replace with your weights directory
+    weights_dir = (
+        "/home/jovyan/mal-code/ch2/checkpoints/"  # Replace with your weights directory
+    )
 
     upload_models_to_hf(repo_id, weights_dir)
