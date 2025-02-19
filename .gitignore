@@ -12,3 +12,4 @@ out.txt
 *.env
 __pycache__/
 book/
+pretrained-checkpoints/
