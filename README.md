@@ -18,6 +18,12 @@ uv sync
 source .venv/bin/activate
 ```
 
+1. Setup the environment variables. You will need a Hugging Face token to download the models.
+
+```bash
+cp .env.sample .env
+```
+
 ## Run the code
 
 Specific chapters have their own README with instructions on how to run the code.

@@ -7,6 +7,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "datasets>=3.2.0",
     "gensim>=4.3.3",
+    "huggingface-hub[hf-transfer]>=0.28.1",
     "huggingface>=0.0.1",
     "jupyter>=1.1.1",
     "matplotlib>=3.10.0",
@@ -22,4 +23,5 @@ dependencies = [
     "torchvision>=0.20.1",
     "transformers>=4.48.1",
     "wandb>=0.19.4",
+    "python-dotenv>=1.0.1",
 ]
