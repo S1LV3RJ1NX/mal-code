@@ -24,4 +24,5 @@ dependencies = [
     "transformers>=4.48.1",
     "wandb>=0.19.4",
     "python-dotenv>=1.0.1",
+    "triton>=3.2.0",
 ]
