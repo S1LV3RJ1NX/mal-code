@@ -25,4 +25,10 @@ dependencies = [
     "wandb>=0.19.4",
     "python-dotenv>=1.0.1",
     "triton>=3.2.0",
+    "jaxtyping>=0.3.0",
+    "triton-viz",
+    "pycairo>=1.27.0",
 ]
+
+[tool.uv.sources]
+triton-viz = { git = "https://github.com/Deep-Learning-Profiling-Tools/triton-viz", rev = "v1.1.1" }
