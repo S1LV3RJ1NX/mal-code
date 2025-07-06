@@ -65,7 +65,7 @@ class SimpleMLA(nn.Module):
         ## 1. Compute the absorbed query matrix only once
         if self.absorbed_query_key_projection is None:
             # multiply W_q by W_uk transpose
-            absorbed_query_key_projection = self.W_q @ self.W_uk # (d_model, kv_latent_dim)
+            absorbed_query_key_projection = self.W_q.weight @ self.W_uk.weight # (d_model, kv_latent_dim)
             # Split absorbed query matrix among the different attention heads
             # NOTE: The difference between MHA and MLA is that in MHA we split d_model along columns, not the rows unlike here.
             # As a consequence, we would going ahead, we would have to split the input as well, as the last dimension of the absorbed query matrix is the kv_latent_dim, instead of d_model.
@@ -125,8 +125,8 @@ class SimpleMLA(nn.Module):
         ## 3. Project the context vectors back to the original dimension (d_model, d_model)
         output = self.W_o(context_vectors)
 
-        ## 4. Return the output
-        return output
+        ## 4. Return the output and the updated kv cache
+        return output, kv_cache
         
         
         
