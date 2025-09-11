@@ -1,0 +1,23 @@
+# Make sure cuda is installed
+# sudo apt-get install cuda
+
+# Check if cuda symbolic link exists
+# If not, create a symbolic link to the cuda installation, with the version number
+# if [ ! -L /usr/local/cuda ]; then
+#     sudo ln -s /usr/local/cuda-12.1 /usr/local/cuda
+# fi
+
+
+echo '
+# CUDA Environment Variables
+export CUDA_HOME=/usr/local/cuda
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64
+export PATH=$PATH:$CUDA_HOME/bin
+' >> ~/.bashrc
+
+# Restart the terminal or source the bashrc file
+# source ~/.bashrc
+
+
+
+
