@@ -35,10 +35,10 @@ def main():
     
     # Training hyperparameters
     TRAINING_CONFIG = {
-        "num_epochs": 10,
+        "num_epochs": 5,
         "learning_rate": 3e-4,
         "min_lr": 3e-5,
-        "batch_size": 8,
+        "batch_size": 32,
         "max_grad_norm": 1.0,
         "weight_decay": 0.1,
         "checkpoint_dir": "checkpoints",

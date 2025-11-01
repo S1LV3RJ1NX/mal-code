@@ -84,11 +84,9 @@ class MultiHeadLatentAttention(nn.Module):
                 1, 1, context_len, context_len
             )
         )
-        
-        # Absorbed query-key projection (computed once, cached for efficiency)
-        # This is the key optimization: W_q @ W_uk^T can be precomputed
-        self.register_buffer('absorbed_qk_proj', None)
-    
+        # Initialize absorbed projection cache
+        self.absorbed_qk_proj = None
+
     def _compute_absorbed_projection(self):
         """
         Compute and cache the absorbed query-key projection.
@@ -99,7 +97,7 @@ class MultiHeadLatentAttention(nn.Module):
         
         Shape: (n_heads, head_dim, kv_latent_dim)
         """
-        if self.absorbed_qk_proj is None:
+        if self.training or self.absorbed_qk_proj is None:
             # Compute absorbed projection: W_q @ W_uk^T
             absorbed = self.W_q.weight @ self.W_uk.weight  # (n_embd, kv_latent_dim)
             
@@ -108,6 +106,54 @@ class MultiHeadLatentAttention(nn.Module):
             self.absorbed_qk_proj = absorbed.view(
                 self.n_heads, self.head_dim, self.kv_latent_dim
             )
+        return self.absorbed_qk_proj
+    
+    # def _get_absorbed_projection(self):
+    #     """
+    #     Get the absorbed query-key projection with smart caching.
+        
+    #     This is the "absorption trick": instead of computing Q @ K^T where
+    #     Q = X @ W_q and K = C_kv @ W_uk, we precompute W_q @ W_uk^T and
+    #     compute (X @ [W_q @ W_uk^T]) @ C_kv^T, saving computation.
+        
+    #     We cache the result and only recompute when weights actually change.
+    #     During training, weights change frequently, so we get some caching benefit
+    #     within each forward pass. During inference, weights are static, so we get
+    #     maximum caching benefit.
+        
+    #     Shape: (n_heads, head_dim, kv_latent_dim)
+    #     """
+    #     # Use tensor data pointers as a more reliable change detection
+    #     current_q_ptr = self.W_q.weight.data_ptr()
+    #     current_uk_ptr = self.W_uk.weight.data_ptr()
+        
+    #     # Check if this is first time or if weight tensors have been replaced
+    #     need_recompute = (
+    #         self.absorbed_qk_proj is None or 
+    #         self._weights_hash != (current_q_ptr, current_uk_ptr)
+    #     )
+        
+    #     if need_recompute:
+    #         # Compute absorbed projection: W_q @ W_uk^T
+    #         absorbed = self.W_q.weight @ self.W_uk.weight  # (n_embd, kv_latent_dim)
+            
+    #         # Reshape for multi-head processing and detach to avoid autograd issues
+    #         self.absorbed_qk_proj = absorbed.view(
+    #             self.n_heads, self.head_dim, self.kv_latent_dim
+    #         ).detach()
+            
+    #         # Update hash with tensor pointers
+    #         self._weights_hash = (current_q_ptr, current_uk_ptr)
+        
+    #     # Return a fresh tensor that participates in autograd
+    #     # This ensures gradients flow back to W_q and W_uk properly
+    #     if self.training:
+    #         # During training, recompute to maintain autograd graph
+    #         absorbed = self.W_q.weight @ self.W_uk.weight
+    #         return absorbed.view(self.n_heads, self.head_dim, self.kv_latent_dim)
+    #     else:
+    #         # During inference, use cached version for maximum speed
+    #         return self.absorbed_qk_proj
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -132,7 +178,7 @@ class MultiHeadLatentAttention(nn.Module):
         # This is what we cache (much smaller than standard KV cache!)
         kv_latent = self.ln(self.W_dkv(x))  # (batch_size, seq_len, kv_latent_dim)
         
-        # Step 2: Compute absorbed query-key projection (once)
+        # Step 2: Compute absorbed query-key projection
         self._compute_absorbed_projection()
         
         # Step 3: Split input for multi-head processing
