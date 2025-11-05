@@ -2970,7 +2970,7 @@ Consider this example:
 The word in the blank is a choice point:
 \begin{itemize}
     \item If we predict ``cancel", future tokens will be: ``immediately", ``due", ``to", ``budget"...
-    \item If we predict "expand", future tokens will be: ``significantly", ``with", ``new", ``resources"...
+    \item If we predict ``expand", future tokens will be: ``significantly", ``with", ``new", ``resources"...
     \item If we predict ``accelerate", future tokens will be: ``by", ``hiring", ``more", ``developers"...
 \end{itemize}
 
@@ -3752,7 +3752,11 @@ Our Multi-Token Prediction implementation provides the core components needed to
 
 Multi-Token Prediction completes DeepSeek's three-pillar architecture, working alongside MLA (memory efficiency) and MoE (parameter efficiency) to provide training efficiency. The implementation follows the DeepSeek-V3 architecture exactly, providing 2-3× more training signals from the same data while maintaining the sequential dependencies that make MTP effective.
 
-For the complete implementation details, for training code refer to the codebase \psnote{TODO: add link to github here}, which includes comprehensive docstrings and comments explaining each component.
+For the complete implementation details, for training code refer to the codebase \psnote{TODO: add link to github here}, which includes comprehensive docstrings and comments explaining each component. 
+
+With our understanding of DeepSeek's three core innovations—MLA for memory efficiency, MoE for parameter efficiency, and MTP for training efficiency—we now turn to a critical practical consideration: how to actually deploy these massive models in production. In the next section, we'll explore quantization techniques that make it possible to run billion-parameter models on consumer hardware without sacrificing too much performance.
+
+\section{Quantization: The Final Pillar of DeepSeek}
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%
