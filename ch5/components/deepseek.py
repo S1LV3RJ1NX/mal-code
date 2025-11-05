@@ -3,10 +3,14 @@ DeepSeek Language Model.
 
 This module implements a complete autoregressive language model combining
 Multi-Head Latent Attention (MLA) and Mixture of Experts (MoE).
+
+Optional Multi-Token Prediction (MTP) can be enabled during training for
+improved data efficiency and model quality.
 """
 
 from components.common import nn, torch, F
 from components.transformer import TransformerBlock
+from components.mtp import MultiTokenPrediction, compute_mtp_loss
 
 
 class DeepSeekModel(nn.Module):
@@ -24,6 +28,11 @@ class DeepSeekModel(nn.Module):
           ↓
         Language Model Head (linear projection to vocabulary)
     
+    Optional Multi-Token Prediction (MTP):
+        During training, MTP can be enabled to predict multiple future tokens
+        at each position, providing denser training signals and improving
+        data efficiency. MTP is disabled during inference.
+    
     Args:
         cfg (dict): Configuration dictionary containing:
             - vocab_size (int): Size of the vocabulary
@@ -37,18 +46,26 @@ class DeepSeekModel(nn.Module):
             - top_k (int): Number of experts to activate per token
             - expert_hidden_dim (int): Hidden dimension for experts
             - drop_rate (float): Dropout rate
+            - use_mtp (bool, optional): Enable Multi-Token Prediction (default: False)
+            - mtp_depth (int, optional): Number of future tokens to predict (default: 3)
+            - mtp_weight (float, optional): Weight for MTP loss (default: 0.3)
     
     Example:
         >>> cfg = {
         ...     "vocab_size": 50257, "context_length": 256, "emb_dim": 512,
         ...     "n_heads": 8, "kv_latent_dim": 128, "n_layers": 6,
         ...     "num_experts": 8, "num_shared_experts": 1, "top_k": 2,
-        ...     "expert_hidden_dim": 2048, "drop_rate": 0.1
+        ...     "expert_hidden_dim": 2048, "drop_rate": 0.1,
+        ...     "use_mtp": True, "mtp_depth": 3, "mtp_weight": 0.3
         ... }
         >>> model = DeepSeekModel(cfg)
         >>> input_ids = torch.randint(0, 50257, (2, 10))
+        >>> # Training with MTP
+        >>> model.train()
+        >>> logits, loss = model(input_ids, input_ids)
+        >>> # Inference (MTP automatically disabled)
+        >>> model.eval()
         >>> logits = model(input_ids)
-        >>> print(logits.shape)  # torch.Size([2, 10, 50257])
     """
     
     def __init__(self, cfg: dict):
@@ -74,6 +91,22 @@ class DeepSeekModel(nn.Module):
         # Weight tying: share weights between token embedding and output projection
         self.out_head.weight = self.tok_emb.weight
         
+        # Multi-Token Prediction (optional, for training only)
+        self.use_mtp = cfg.get("use_mtp", False)
+        if self.use_mtp:
+            self.mtp = MultiTokenPrediction(
+                d_model=cfg["emb_dim"],
+                vocab_size=cfg["vocab_size"],
+                num_heads=cfg.get("mtp_depth", 3),
+                nhead=cfg["n_heads"],
+                cfg=cfg
+            )
+            # Weight tying: share embeddings between base model and MTP
+            self.mtp.embed.weight = self.tok_emb.weight
+            self.mtp.unembed.weight = self.out_head.weight
+            self.mtp_weight = cfg.get("mtp_weight", 0.3)
+            print(f"MTP enabled: depth={cfg.get('mtp_depth', 3)}, weight={self.mtp_weight}")
+        
         # Initialize weights
         self.apply(self._init_weights)
     
@@ -98,6 +131,13 @@ class DeepSeekModel(nn.Module):
         """
         Forward pass through the language model.
         
+        During training with MTP enabled, computes both standard next-token
+        prediction loss and multi-token prediction loss, combining them with
+        configurable weighting.
+        
+        During inference or when MTP is disabled, performs standard autoregressive
+        forward pass.
+        
         Args:
             in_idx (torch.Tensor): Input token indices of shape (batch_size, seq_len)
             target_idx (torch.Tensor, optional): Target token indices for loss computation
@@ -108,7 +148,7 @@ class DeepSeekModel(nn.Module):
             If target_idx is provided:
                 tuple: (logits, loss)
                     - logits (torch.Tensor): Output logits
-                    - loss (torch.Tensor): Cross-entropy loss
+                    - loss (torch.Tensor): Combined loss (standard + MTP if enabled)
         """
         batch_size, seq_len = in_idx.shape
         
@@ -139,11 +179,23 @@ class DeepSeekModel(nn.Module):
         if target_idx is None:
             loss = None
         else:
-            # Reshape for cross-entropy loss
-            loss = F.cross_entropy(
+            # Standard next-token prediction loss
+            standard_loss = F.cross_entropy(
                 logits.view(-1, logits.size(-1)),
                 target_idx.view(-1)
             )
+            
+            # Add MTP loss if enabled and in training mode
+            if self.use_mtp and self.training:
+                # Get hidden states for MTP (before final projection)
+                # We reuse x which is the output after final_norm
+                mtp_logits = self.mtp(in_idx, init_hidden=x)
+                mtp_loss = compute_mtp_loss(mtp_logits, target_idx)
+                
+                # Combine losses: (1-α) * standard + α * MTP
+                loss = (1 - self.mtp_weight) * standard_loss + self.mtp_weight * mtp_loss
+            else:
+                loss = standard_loss
         
         return logits if loss is None else (logits, loss)
     

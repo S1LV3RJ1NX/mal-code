@@ -30,6 +30,11 @@ DEEPSEEK_CONFIG = {
     # Expert Architecture
     "expert_hidden_dim": 2048,  # Hidden dimension for each expert FFN
                                  # Typically 4× the embedding dimension
+    
+    # MTP (Multi-Token Prediction) Parameters
+    "use_mtp": True,
+    "mtp_depth": 3,
+    "mtp_weight": 0.3,
 }
 
 # Smaller configuration for quick testing and experimentation
@@ -45,6 +50,10 @@ DEEPSEEK_CONFIG_SMALL = {
     "num_shared_experts": 1,
     "top_k": 2,
     "expert_hidden_dim": 1024,
+    # MTP (Multi-Token Prediction) Parameters
+    "use_mtp": True,
+    "mtp_depth": 3,
+    "mtp_weight": 0.3,
 }
 
 # Large configuration for production use
@@ -60,4 +69,8 @@ DEEPSEEK_CONFIG_LARGE = {
     "num_shared_experts": 2,
     "top_k": 4,
     "expert_hidden_dim": 4096,
+    # MTP (Multi-Token Prediction) Parameters
+    "use_mtp": True,
+    "mtp_depth": 3,
+    "mtp_weight": 0.3,
 }
