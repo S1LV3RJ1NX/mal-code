@@ -24,7 +24,7 @@ DEEPSEEK_CONFIG = {
     
     # MoE (Mixture of Experts) Parameters
     "num_experts": 8,         # Total number of routed experts
-    "num_shared_experts": 1,  # Number of shared experts (always activated)
+    "num_shared_experts": 2,  # Number of shared experts (always activated)
     "top_k": 2,               # Number of experts to activate per token
     
     # Expert Architecture
@@ -37,7 +37,7 @@ DEEPSEEK_CONFIG = {
     "mtp_weight": 0.3,
     
     # Memory Optimization Parameters
-    "use_gradient_checkpointing": True,  # Trade compute for memory
+    "use_gradient_checkpointing": False,  # Disable for speed (we have enough memory)
     "mixed_precision": True,             # Use FP16/BF16 for memory savings
 }
 
@@ -59,28 +59,6 @@ DEEPSEEK_CONFIG_SMALL = {
     "mtp_depth": 3,
     "mtp_weight": 0.3,
     # Memory Optimization Parameters
-    "use_gradient_checkpointing": True,  # Trade compute for memory
-    "mixed_precision": True,             # Use FP16/BF16 for memory savings
-}
-
-# Large configuration for production use
-DEEPSEEK_CONFIG_LARGE = {
-    "vocab_size": 50257,
-    "context_length": 512,
-    "emb_dim": 1024,
-    "n_heads": 16,
-    "n_layers": 12,
-    "drop_rate": 0.1,
-    "kv_latent_dim": 128,      # 1024 / 8 = 128 (8× compression)
-    "num_experts": 16,
-    "num_shared_experts": 2,
-    "top_k": 4,
-    "expert_hidden_dim": 4096,
-    # MTP (Multi-Token Prediction) Parameters
-    "use_mtp": True,
-    "mtp_depth": 3,
-    "mtp_weight": 0.3,
-    # Memory Optimization Parameters
-    "use_gradient_checkpointing": True,  # Trade compute for memory
+    "use_gradient_checkpointing": False,  # Disable for speed (we have enough memory)
     "mixed_precision": True,             # Use FP16/BF16 for memory savings
 }
