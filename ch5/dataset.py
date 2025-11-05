@@ -3,6 +3,9 @@ Dataset Module for Training the DeepSeek Language Model.
 
 This module handles data loading and preprocessing for text datasets,
 using a sliding window approach for sequence generation.
+
+Default dataset: TinyStories - High-quality synthetic stories perfect for
+demonstrating MTP benefits on A10 GPU.
 """
 
 import numpy as np
@@ -36,7 +39,7 @@ class TextDataset(Dataset):
     Example:
         >>> from datasets import load_dataset
         >>> import tiktoken
-        >>> dataset = load_dataset("sgoel9/paul_graham_essays", split="train")
+        >>> dataset = load_dataset("roneneldan/TinyStories", split="train")
         >>> tokenizer = tiktoken.get_encoding("gpt2")
         >>> text_dataset = TextDataset(dataset, tokenizer, context_length=256)
         >>> input_ids, target_ids = text_dataset[0]
@@ -143,10 +146,10 @@ def create_dataloaders(
     Example:
         >>> from datasets import load_dataset
         >>> import tiktoken
-        >>> dataset = load_dataset("sgoel9/paul_graham_essays", split="train")
+        >>> dataset = load_dataset("roneneldan/TinyStories", split="train")
         >>> tokenizer = tiktoken.get_encoding("gpt2")
         >>> train_loader, val_loader = create_dataloaders(
-        ...     dataset, tokenizer, context_length=256, batch_size=8
+        ...     dataset, tokenizer, context_length=256, batch_size=16
         ... )
         >>> print(f"Train batches: {len(train_loader)}, Val batches: {len(val_loader)}")
     """

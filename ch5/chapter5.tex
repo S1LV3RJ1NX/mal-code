@@ -3471,7 +3471,382 @@ Together, these innovations create a model that is:
     \item \textbf{Practical:} Uses standard inference despite advanced training
 \end{itemize}
 
-The beauty of MTP is its simplicity: predict more tokens, get better training. Yet this simple idea, combined with DeepSeek's innovation of maintaining causal chains, leads to measurable improvements in model quality. In the next section, we will implement Multi-Token Prediction from scratch, seeing exactly how these concepts translate into working code.
+The beauty of MTP is its simplicity: predict more tokens, get better training. Yet this simple idea, combined with DeepSeek's innovation of maintaining causal chains, leads to measurable improvements in model quality. In the next section, we will see how Multi-Token Prediction is implemented in our codebase.
+
+\section{Coding Multi-Token Prediction}
+
+Having explored the theory and architecture of Multi-Token Prediction, we now examine its practical implementation in our DeepSeek codebase. The implementation consists of two main components: the MTP module itself and its integration into the DeepSeek model.
+
+\subsection{Implementation Overview}
+
+Our MTP implementation follows the architecture described in the DeepSeek-V3 paper, with three key components:
+
+\begin{enumerate}
+    \item \textbf{RMSNorm Layer} (\texttt{mtp.py}): Normalizes hidden states and embeddings before concatenation
+    \item \textbf{MultiTokenPrediction Module} (\texttt{mtp.py}): Implements sequential prediction heads with causal information flow
+    \item \textbf{DeepSeek Integration} (\texttt{deepseek.py}): Adds optional MTP support to the main model
+\end{enumerate}
+
+The key design decision is that MTP is \textit{optional} and \textit{training-only}. When enabled through configuration, it provides additional training signals without any modifications to the inference pipeline.
+
+\subsection{RMSNorm: Pre-Concatenation Normalization}
+
+Before concatenating hidden states and token embeddings in each prediction head, we apply Root Mean Square normalization to ensure both inputs have similar scales. The RMSNorm implementation in \texttt{mtp.py} is straightforward:
+
+\begin{minted}[
+    frame=lines,
+    framesep=2mm,
+    baselinestretch=1.2,
+    bgcolor=lightgray,
+    fontsize=\footnotesize,
+    linenos
+]{python}
+class RMSNorm(nn.Module):
+    """Root Mean Square Layer Normalization."""
+    
+    def __init__(self, d_model: int, eps: float = 1e-8):
+        super().__init__()
+        self.eps = eps
+    
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        rms = torch.sqrt(x.pow(2).mean(dim=-1, keepdim=True) + self.eps)
+        return x / rms
+\end{minted}
+
+This normalization stabilizes training by preventing one component from dominating the concatenated vector.
+
+\subsection{MultiTokenPrediction Module}
+
+The core MTP implementation in \texttt{mtp.py} creates sequential prediction heads. Each head:
+
+\begin{enumerate}
+    \item Receives the hidden state from the previous head (or base model)
+    \item Gets the token embedding at the target future position
+    \item Applies RMSNorm to both inputs
+    \item Concatenates and projects back to \texttt{d\_model} dimensions
+    \item Passes through a transformer block (reusing our MLA + MoE implementation)
+    \item Generates logits via the output projection
+    \item Passes its hidden state to the next head
+\end{enumerate}
+
+Key aspects of the implementation:
+
+\begin{minted}[
+    frame=lines,
+    framesep=2mm,
+    baselinestretch=1.2,
+    bgcolor=lightgray,
+    fontsize=\footnotesize,
+    linenos
+]{python}
+class MultiTokenPrediction(nn.Module):
+    def __init__(self, d_model, vocab_size, num_heads, nhead, cfg):
+        super().__init__()
+        self.num_heads = num_heads  # Depth D
+        
+        # Shared components
+        self.rmsnorm = RMSNorm(d_model)
+        self.embed = nn.Embedding(vocab_size, d_model)
+        self.unembed = nn.Linear(d_model, vocab_size, bias=False)
+        
+        # Weight tying
+        self.unembed.weight = self.embed.weight
+        
+        # One projection and transformer per head
+        self.projections = nn.ModuleList([
+            nn.Linear(2 * d_model, d_model) for _ in range(num_heads)
+        ])
+        self.transformers = nn.ModuleList([
+            TransformerBlock(cfg) for _ in range(num_heads)
+        ])
+    
+    def forward(self, token_ids, init_hidden=None):
+        # Implementation details in mtp.py
+        # Returns: (batch, T-D, D, vocab_size)
+        pass
+\end{minted}
+
+The forward pass iterates over valid positions, creating predictions for each depth level while maintaining causal dependencies through hidden state propagation.
+
+\subsection{Loss Computation}
+
+The MTP loss function in \texttt{mtp.py} accumulates cross-entropy losses across all positions and depths:
+
+\begin{minted}[
+    frame=lines,
+    framesep=2mm,
+    baselinestretch=1.2,
+    bgcolor=lightgray,
+    fontsize=\footnotesize,
+    linenos
+]{python}
+def compute_mtp_loss(logits, targets):
+    """
+    Compute Multi-Token Prediction loss.
+    Args:
+        logits: (batch, L, D, vocab_size)
+        targets: (batch, T)
+    Returns:
+        loss: Scalar averaged over L*D predictions
+    """
+    batch_size, L, D, vocab_size = logits.shape
+    loss = 0.0
+    
+    for i in range(L):
+        for k in range(D):
+            logit_ik = logits[:, i, k, :]
+            target_ik = targets[:, i + (k + 1)]
+            loss += F.cross_entropy(logit_ik, target_ik)
+    
+    return loss / (L * D)
+\end{minted}
+
+This ensures each prediction contributes equally to the total loss, with normalization making the magnitude comparable to standard next-token prediction.
+
+\subsection{Integration with DeepSeek Model}
+
+The DeepSeek model in \texttt{deepseek.py} now supports optional MTP through configuration. When \texttt{use\_mtp=True} in the config:
+
+\begin{minted}[
+    frame=lines,
+    framesep=2mm,
+    baselinestretch=1.2,
+    bgcolor=lightgray,
+    fontsize=\footnotesize,
+    linenos
+]{python}
+class DeepSeekModel(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
+        # ... standard model components ...
+        
+        # Optional MTP
+        self.use_mtp = cfg.get("use_mtp", False)
+        if self.use_mtp:
+            self.mtp = MultiTokenPrediction(...)
+            # Weight tying with base model
+            self.mtp.embed.weight = self.tok_emb.weight
+            self.mtp.unembed.weight = self.out_head.weight
+            self.mtp_weight = cfg.get("mtp_weight", 0.3)
+    
+    def forward(self, in_idx, target_idx=None):
+        # Standard forward pass
+        x = self.tok_emb(in_idx) + self.pos_emb(...)
+        x = self.trf_blocks(x)
+        x = self.final_norm(x)
+        logits = self.out_head(x)
+        
+        if target_idx is None:
+            return logits
+        
+        # Compute standard loss
+        standard_loss = F.cross_entropy(logits.view(-1, ...), 
+                                       target_idx.view(-1))
+        
+        # Add MTP loss if enabled and training
+        if self.use_mtp and self.training:
+            mtp_logits = self.mtp(in_idx, init_hidden=x)
+            mtp_loss = compute_mtp_loss(mtp_logits, target_idx)
+            loss = (1 - self.mtp_weight) * standard_loss + \
+                   self.mtp_weight * mtp_loss
+        else:
+            loss = standard_loss
+        
+        return logits, loss
+\end{minted}
+
+\subsection{Training Configuration}
+
+To enable MTP during training, simply add these parameters to your configuration:
+
+\begin{minted}[
+    frame=lines,
+    framesep=2mm,
+    baselinestretch=1.2,
+    bgcolor=lightgray,
+    fontsize=\footnotesize,
+    linenos
+]{python}
+config = {
+    # Standard DeepSeek parameters
+    "vocab_size": 50257,
+    "emb_dim": 512,
+    "n_heads": 8,
+    # ... other params ...
+    
+    # MTP configuration
+    "use_mtp": True,        # Enable MTP
+    "mtp_depth": 3,         # Predict 3 tokens ahead
+    "mtp_weight": 0.3,      # 30% weight on MTP loss
+}
+
+model = DeepSeekModel(config)
+trainer = Trainer(model, train_loader, val_loader, train_config, device)
+trainer.train()  # MTP automatically used during training
+\end{minted}
+
+The existing \texttt{Trainer} class in \texttt{trainer.py} requires no modifications---it simply calls \texttt{model.forward()} which now handles MTP internally when enabled.
+
+\subsection{Automatic Training vs. Inference Behavior}
+
+The implementation automatically handles the distinction between training and inference:
+
+\begin{itemize}
+    \item \textbf{Training mode} (\texttt{model.train()}): If MTP is enabled, computes combined loss
+    \item \textbf{Evaluation mode} (\texttt{model.eval()}): MTP is automatically disabled, uses only standard loss
+    \item \textbf{Inference} (no targets): Returns logits only, MTP never invoked
+\end{itemize}
+
+This ensures that MTP provides training benefits without any inference overhead.
+
+\subsection{Key Implementation Details}
+
+\subsubsection{Weight Tying}
+
+The embedding weights are shared between the base model and MTP module:
+
+\begin{minted}[
+    frame=lines,
+    framesep=2mm,
+    baselinestretch=1.2,
+    bgcolor=lightgray,
+    fontsize=\footnotesize
+]{python}
+self.mtp.embed.weight = self.tok_emb.weight
+self.mtp.unembed.weight = self.out_head.weight
+\end{minted}
+
+This ensures consistent token representations and reduces parameter count.
+
+\subsubsection{Causal Information Flow}
+
+Each prediction head builds on the previous head's output:
+
+\begin{minted}[
+    frame=lines,
+    framesep=2mm,
+    baselinestretch=1.2,
+    bgcolor=lightgray,
+    fontsize=\footnotesize
+]{python}
+h_prev = h0_seq[:, i, :]  # Initial hidden state
+for k in range(num_heads):
+    # Use h_prev from previous head
+    h_curr = transformer(project(concat(h_prev, embed)))
+    logits_k.append(unembed(h_curr))
+    h_prev = h_curr  # Pass to next head
+\end{minted}
+
+This maintains the sequential dependencies that make MTP effective.
+
+\subsubsection{Shape Handling}
+
+For a sequence of length $T$ with depth $D$:
+\begin{itemize}
+    \item Input: $(\text{batch}, T)$
+    \item MTP output: $(\text{batch}, T-D, D, \text{vocab\_size})$
+    \item Can predict from positions $i \in \{0, 1, \ldots, T-D-1\}$
+    \item Each position produces $D$ predictions
+    \item Total predictions: $(T-D) \times D$ per sequence
+\end{itemize}
+
+\subsection{Complete Example}
+
+Here's a complete example of training with MTP:
+
+\begin{minted}[
+    frame=lines,
+    framesep=2mm,
+    baselinestretch=1.2,
+    bgcolor=lightgray,
+    fontsize=\footnotesize,
+    linenos
+]{python}
+from deepseek import DeepSeekModel
+from trainer import Trainer
+from dataset import create_dataloaders
+
+# Configuration with MTP enabled
+config = {
+    "vocab_size": 50257,
+    "context_length": 256,
+    "emb_dim": 512,
+    "n_heads": 8,
+    "kv_latent_dim": 128,
+    "n_layers": 6,
+    "num_experts": 8,
+    "num_shared_experts": 1,
+    "top_k": 2,
+    "expert_hidden_dim": 2048,
+    "drop_rate": 0.1,
+    "use_mtp": True,
+    "mtp_depth": 3,
+    "mtp_weight": 0.3,
+}
+
+# Create model and dataloaders
+model = DeepSeekModel(config)
+train_loader, val_loader = create_dataloaders(...)
+
+# Training configuration
+train_config = {
+    "num_epochs": 10,
+    "learning_rate": 3e-4,
+    "max_grad_norm": 1.0,
+    "checkpoint_dir": "checkpoints",
+}
+
+# Train (MTP automatically used)
+trainer = Trainer(model, train_loader, val_loader, train_config, device)
+trainer.train()
+
+# Inference (MTP automatically disabled)
+model.eval()
+with torch.no_grad():
+    logits = model(input_ids)
+    next_token = logits[:, -1, :].argmax(dim=-1)
+\end{minted}
+
+\subsection{Benefits Realized}
+
+This implementation provides:
+
+\begin{itemize}
+    \item \textbf{Densified training signals}: $(T-D) \times D$ predictions vs. $T-1$ standard predictions
+    \item \textbf{Improved data efficiency}: Learn more from each training batch
+    \item \textbf{Sequential reasoning}: Causal chains through prediction heads
+    \item \textbf{Zero inference cost}: MTP disabled automatically during inference
+    \item \textbf{Seamless integration}: No changes needed to trainer or inference code
+    \item \textbf{Configurable}: Easy to enable/disable and tune hyperparameters
+\end{itemize}
+
+\subsection{Implementation Notes}
+
+When implementing MTP in your own codebase:
+
+\begin{enumerate}
+    \item Start with \texttt{mtp\_depth=3} and \texttt{mtp\_weight=0.3} (standard values)
+    \item Ensure sequence length $> \text{mtp\_depth} + 1$ in your data
+    \item Verify output shape is $(\text{batch}, T-D, D, \text{vocab\_size})$
+    \item Check that training loss decreases smoothly
+    \item Monitor that MTP is disabled during validation/inference
+\end{enumerate}
+
+For the complete implementation details, refer to \texttt{mtp.py} and \texttt{deepseek.py} in the codebase. The code includes comprehensive docstrings and comments explaining each component.
+
+\subsection{Summary}
+
+Multi-Token Prediction completes DeepSeek's three-pillar architecture, working alongside MLA (memory efficiency) and MoE (parameter efficiency) to provide training efficiency. Our implementation:
+
+\begin{itemize}
+    \item Follows the DeepSeek-V3 architecture exactly
+    \item Integrates seamlessly with existing training code
+    \item Requires only configuration changes to enable
+    \item Automatically handles training vs. inference distinction
+    \item Provides 2-3× more training signals from the same data
+\end{itemize}
+
+The elegance of this implementation lies in its transparency: enable a flag in your config, and your model automatically benefits from multi-token prediction during training while maintaining standard inference behavior.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%

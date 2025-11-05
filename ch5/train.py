@@ -4,6 +4,7 @@ Main Training Script for DeepSeek Language Model.
 This script trains a DeepSeek model on text data with configurable parameters.
 """
 
+from sympy import false
 import torch
 from datasets import load_dataset
 import tiktoken
@@ -24,7 +25,7 @@ def main():
     # =========================================================================
     
     # Choose configuration (SMALL for quick testing, default for full training)
-    USE_SMALL_CONFIG = False  # Set to True for quick testing
+    USE_SMALL_CONFIG = True  # Set to True for quick testing
     
     if USE_SMALL_CONFIG:
         MODEL_CONFIG = DEEPSEEK_CONFIG_SMALL.copy()
@@ -38,18 +39,18 @@ def main():
         "num_epochs": 5,
         "learning_rate": 3e-4,
         "min_lr": 3e-5,
-        "batch_size": 32,
+        "batch_size": 16,
         "max_grad_norm": 1.0,
         "weight_decay": 0.1,
         "checkpoint_dir": "checkpoints",
         "save_every": 2,
-        "use_wandb": True,  # Enable Weights & Biases logging
-        "run_name": "deepseek-pg-essays",  # Name for this training run
+        "use_wandb": false,  # Enable Weights & Biases logging
+        "run_name": "deepseek-tinystories",  # Name for this training run
     }
     
     # Dataset configuration
-    DATASET_NAME = "sgoel9/paul_graham_essays"
-    TRAIN_SPLIT = 0.9
+    DATASET_NAME = "roneneldan/TinyStories"
+    TRAIN_SPLIT = 0.95
     
     # Device configuration
     if torch.cuda.is_available():
