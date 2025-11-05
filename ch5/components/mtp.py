@@ -183,10 +183,12 @@ class MultiTokenPrediction(nn.Module):
         
         # Calculate maximum valid starting position
         # We can only predict from positions where i + D < seq_len
+        # For position i, we predict tokens at i+1, i+2, ..., i+D
+        # So we need i + D < seq_len, which means i < seq_len - D
         max_i = seq_len - self.num_heads - 1
         
         # Iterate over positions where we can predict D tokens into the future
-        for i in range(0, max_i + 1):
+        for i in range(0, max_i):
             # Get base hidden state at position i: (batch, d_model)
             h_prev = h0_seq[:, i, :]
             

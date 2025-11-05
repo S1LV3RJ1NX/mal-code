@@ -35,6 +35,10 @@ DEEPSEEK_CONFIG = {
     "use_mtp": True,
     "mtp_depth": 3,
     "mtp_weight": 0.3,
+    
+    # Memory Optimization Parameters
+    "use_gradient_checkpointing": True,  # Trade compute for memory
+    "mixed_precision": True,             # Use FP16/BF16 for memory savings
 }
 
 # Smaller configuration for quick testing and experimentation
@@ -54,6 +58,9 @@ DEEPSEEK_CONFIG_SMALL = {
     "use_mtp": True,
     "mtp_depth": 3,
     "mtp_weight": 0.3,
+    # Memory Optimization Parameters
+    "use_gradient_checkpointing": True,  # Trade compute for memory
+    "mixed_precision": True,             # Use FP16/BF16 for memory savings
 }
 
 # Large configuration for production use
@@ -73,4 +80,7 @@ DEEPSEEK_CONFIG_LARGE = {
     "use_mtp": True,
     "mtp_depth": 3,
     "mtp_weight": 0.3,
+    # Memory Optimization Parameters
+    "use_gradient_checkpointing": True,  # Trade compute for memory
+    "mixed_precision": True,             # Use FP16/BF16 for memory savings
 }

@@ -4,7 +4,6 @@ Main Training Script for DeepSeek Language Model.
 This script trains a DeepSeek model on text data with configurable parameters.
 """
 
-from sympy import false
 import torch
 from datasets import load_dataset
 import tiktoken
@@ -25,7 +24,7 @@ def main():
     # =========================================================================
     
     # Choose configuration (SMALL for quick testing, default for full training)
-    USE_SMALL_CONFIG = True  # Set to True for quick testing
+    USE_SMALL_CONFIG = False  # Set to True for quick testing
     
     if USE_SMALL_CONFIG:
         MODEL_CONFIG = DEEPSEEK_CONFIG_SMALL.copy()
@@ -35,16 +34,24 @@ def main():
         print("Using DEFAULT configuration")
     
     # Training hyperparameters
+    # Adaptive batch size based on configuration and memory
+    if USE_SMALL_CONFIG:
+        # Small config can handle larger batch sizes
+        batch_size = 16
+    else:
+        # Default config needs smaller batch size for memory efficiency
+        batch_size = 16  # Reduced from 32 to avoid OOM
+    
     TRAINING_CONFIG = {
         "num_epochs": 5,
         "learning_rate": 3e-4,
         "min_lr": 3e-5,
-        "batch_size": 16,
+        "batch_size": batch_size,
         "max_grad_norm": 1.0,
         "weight_decay": 0.1,
         "checkpoint_dir": "checkpoints",
         "save_every": 2,
-        "use_wandb": false,  # Enable Weights & Biases logging
+        "use_wandb": False,  # Enable Weights & Biases logging
         "run_name": "deepseek-tinystories",  # Name for this training run
     }
     

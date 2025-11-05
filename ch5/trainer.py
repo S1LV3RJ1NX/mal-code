@@ -19,6 +19,7 @@ import torch
 import torch.nn as nn
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR
+from torch.amp import GradScaler, autocast
 from tqdm import tqdm
 
 try:
@@ -89,6 +90,10 @@ class Trainer:
         
         # Move model to device
         self.model.to(device)
+        
+        # Mixed precision training setup
+        self.use_mixed_precision = config.get("mixed_precision", False) and device.type == "cuda"
+        self.scaler = GradScaler('cuda') if self.use_mixed_precision else None
         
         # Setup optimizer with AdamW (better weight decay than Adam)
         self.optimizer = AdamW(
@@ -163,21 +168,44 @@ class Trainer:
             
             # Forward pass - model returns both logits and loss
             self.optimizer.zero_grad()
-            logits, loss = self.model(inputs, targets)
             
-            # Backward pass
-            loss.backward()
+            if self.use_mixed_precision:
+                # Mixed precision forward pass
+                with autocast('cuda'):
+                    logits, loss = self.model(inputs, targets)
+                
+                # Mixed precision backward pass
+                self.scaler.scale(loss).backward()
+                
+                # Gradient clipping with mixed precision
+                if self.config.get("max_grad_norm", None):
+                    self.scaler.unscale_(self.optimizer)
+                    torch.nn.utils.clip_grad_norm_(
+                        self.model.parameters(),
+                        self.config["max_grad_norm"]
+                    )
+                
+                # Mixed precision optimizer step
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+            else:
+                # Standard precision forward pass
+                logits, loss = self.model(inputs, targets)
+                
+                # Standard backward pass
+                loss.backward()
+                
+                # Gradient clipping
+                if self.config.get("max_grad_norm", None):
+                    torch.nn.utils.clip_grad_norm_(
+                        self.model.parameters(),
+                        self.config["max_grad_norm"]
+                    )
+                
+                # Standard optimizer step
+                self.optimizer.step()
             
-            # Gradient clipping to prevent exploding gradients
-            # This is crucial for training stability
-            if self.config.get("max_grad_norm", None):
-                torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(),
-                    self.config["max_grad_norm"]
-                )
-            
-            # Optimizer and scheduler steps
-            self.optimizer.step()
+            # Scheduler step (same for both precision modes)
             self.scheduler.step()
             
             # Update metrics
@@ -239,7 +267,11 @@ class Trainer:
             targets = targets.to(self.device)
             
             # Forward pass - no gradient computation
-            logits, loss = self.model(inputs, targets)
+            if self.use_mixed_precision:
+                with autocast('cuda'):
+                    logits, loss = self.model(inputs, targets)
+            else:
+                logits, loss = self.model(inputs, targets)
             
             # Update metrics
             total_loss += loss.item()

@@ -8,6 +8,7 @@ and MoE for the feed-forward network, combining both DeepSeek innovations.
 from components.common import nn, torch
 from components.mla import MultiHeadLatentAttention
 from components.moe import SparseMoE
+from torch.utils.checkpoint import checkpoint
 
 
 class TransformerBlock(nn.Module):
@@ -57,6 +58,9 @@ class TransformerBlock(nn.Module):
     def __init__(self, cfg: dict):
         super().__init__()
         
+        # Memory optimization settings
+        self.use_gradient_checkpointing = cfg.get("use_gradient_checkpointing", False)
+        
         # Layer normalization
         self.norm1 = nn.LayerNorm(cfg["emb_dim"])
         self.norm2 = nn.LayerNorm(cfg["emb_dim"])
@@ -91,12 +95,27 @@ class TransformerBlock(nn.Module):
             torch.Tensor: Output tensor of the same shape as input after applying
                           attention, MoE, and residual connections.
         """
-        # MLA block with residual connection
-        # Pre-normalization: apply LayerNorm before attention
-        x = x + self.att(self.norm1(x))
-        
-        # MoE block with residual connection
-        # Pre-normalization: apply LayerNorm before MoE
-        x = x + self.moe(self.norm2(x))
+        if self.use_gradient_checkpointing and self.training:
+            # Use gradient checkpointing to save memory during training
+            def attention_block(x):
+                return self.att(self.norm1(x))
+            
+            def moe_block(x):
+                return self.moe(self.norm2(x))
+            
+            # MLA block with residual connection and checkpointing
+            x = x + checkpoint(attention_block, x, use_reentrant=False)
+            
+            # MoE block with residual connection and checkpointing
+            x = x + checkpoint(moe_block, x, use_reentrant=False)
+        else:
+            # Standard forward pass without checkpointing
+            # MLA block with residual connection
+            # Pre-normalization: apply LayerNorm before attention
+            x = x + self.att(self.norm1(x))
+            
+            # MoE block with residual connection
+            # Pre-normalization: apply LayerNorm before MoE
+            x = x + self.moe(self.norm2(x))
 
         return x
