@@ -10,7 +10,7 @@ from datasets import load_dataset
 import tiktoken
 
 from components.deepseek import DeepSeekModel
-from constants import DEEPSEEK_CONFIG, DEEPSEEK_CONFIG_SMALL, DEEPSEEK_CONFIG_DEMO
+from constants import DEEPSEEK_CONFIG, DEEPSEEK_CONFIG_SMALL
 from dataset import create_dataloaders
 from trainer import Trainer
 from utils import print_model_info
@@ -23,58 +23,37 @@ def main():
     # =========================================================================
     # Configuration Selection
     # =========================================================================
-    
-    # Choose configuration:
-    # - "DEMO": Ultra-fast training (5-6 hours) - perfect for book demonstration
-    # - "SMALL": Quick testing (20-30 hours)
-    # - "FULL": Complete training (150+ hours with FP8, 300+ without)
-    
-    CONFIG_MODE = "SMALL"  # Change to "SMALL" or "FULL" for larger models
-    
-    if CONFIG_MODE == "DEMO":
-        MODEL_CONFIG = DEEPSEEK_CONFIG_DEMO.copy()
-        print("\n🎯 Using DEMO configuration - optimized for fast demonstration")
-        print("   Expected training time: 5-6 hours on H100 with FP8")
-        print("   Model size: ~2M parameters (tiny but demonstrates all features)")
-    elif CONFIG_MODE == "SMALL":
+    CONFIG_MODE = "SMALL"  
+    if CONFIG_MODE == "SMALL":
         MODEL_CONFIG = DEEPSEEK_CONFIG_SMALL.copy()
         print("\n🎯 Using SMALL configuration")
-        print("   Expected training time: 20-30 hours with FP8")
-        print("   Model size: ~10M parameters")
     else:
         MODEL_CONFIG = DEEPSEEK_CONFIG.copy()
         print("\n🎯 Using FULL configuration")
-        print("   Expected training time: 150+ hours with FP8")
-        print("   Model size: ~50M parameters")
     
     # Training configuration
     TRAINING_CONFIG = {
-        "num_epochs": 10 if CONFIG_MODE == "DEMO" else 3,
+        "num_epochs": 1,
         "learning_rate": 3e-4,
         "min_lr": 3e-5,
-        "batch_size": 256 if CONFIG_MODE == "DEMO" else 128,  # Larger batch for tiny model
+        "batch_size": 32,
         "max_grad_norm": 1.0,
         "weight_decay": 0.1,
         "checkpoint_dir": f"checkpoints_{CONFIG_MODE.lower()}",
-        "save_every": 2,
-        "use_wandb": False,  # Enable Weights & Biases logging if needed
+        "save_every": 1,
+        "use_wandb": True,  # Enable Weights & Biases logging if needed
         "run_name": f"deepseek-{CONFIG_MODE.lower()}",
-        # Quantization is enabled/disabled based on model config
-        "enable_quantization": MODEL_CONFIG.get("enable_quantization", True),
+        'enable_quantization': True,
     }
     
     # Dataset configuration
-    DATASET_NAME = "roneneldan/TinyStories"
+    # DATASET_NAME = "roneneldan/TinyStories"
+    DATASET_NAME = "sgoel9/paul_graham_essays"
     
-    # For DEMO, use smaller subset
-    if CONFIG_MODE == "DEMO":
-        TRAIN_SPLIT = 0.95
-        MAX_EXAMPLES = 10000  # Use only 10K examples for speed
-        print(f"   Dataset: Using {MAX_EXAMPLES:,} examples from TinyStories")
-    else:
-        TRAIN_SPLIT = 0.95
-        MAX_EXAMPLES = None
-        print(f"   Dataset: Using full TinyStories dataset")
+    TRAIN_SPLIT = 0.95
+    MAX_EXAMPLES = None
+    print(f"   Dataset: Using {MAX_EXAMPLES} examples from {DATASET_NAME} dataset")
+    print(f"   Train split: {TRAIN_SPLIT}")
     
     # Device configuration
     if torch.cuda.is_available():
