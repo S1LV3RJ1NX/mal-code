@@ -36,6 +36,9 @@ DEEPSEEK_CONFIG = {
     "mtp_depth": 3,
     "mtp_weight": 0.3,
     
+    # Quantization Parameters (NEW!)
+    "enable_quantization": True,  # Enable FP8 quantization for faster training
+    
     # Memory Optimization Parameters
     "use_gradient_checkpointing": False,  # Disable for speed (we have enough memory)
     "mixed_precision": True,             # Use FP16/BF16 for memory savings
@@ -58,7 +61,33 @@ DEEPSEEK_CONFIG_SMALL = {
     "use_mtp": True,
     "mtp_depth": 3,
     "mtp_weight": 0.3,
+    # Quantization Parameters (NEW!)
+    "enable_quantization": True,
     # Memory Optimization Parameters
     "use_gradient_checkpointing": False,  # Disable for speed (we have enough memory)
     "mixed_precision": True,             # Use FP16/BF16 for memory savings
+}
+
+# DEMO configuration - Ultra-fast training for book demonstration (5-6 hours)
+DEEPSEEK_CONFIG_DEMO = {
+    "vocab_size": 50257,
+    "context_length": 64,      # Very short context for speed
+    "emb_dim": 128,            # Tiny model
+    "n_heads": 2,              # Minimal heads
+    "n_layers": 2,             # Just 2 layers
+    "drop_rate": 0.1,
+    "kv_latent_dim": 32,       # 128 / 4 = 32
+    "num_experts": 2,          # Minimal experts
+    "num_shared_experts": 1,
+    "top_k": 1,                # Single expert activation
+    "expert_hidden_dim": 512,  # Small FFN
+    # MTP - Disable for faster training
+    "use_mtp": False,          # Disable MTP to save time
+    "mtp_depth": 3,
+    "mtp_weight": 0.3,
+    # Quantization - Enable for 2x speedup
+    "enable_quantization": True,
+    # Memory Optimization
+    "use_gradient_checkpointing": False,
+    "mixed_precision": True,
 }

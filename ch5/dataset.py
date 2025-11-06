@@ -119,6 +119,7 @@ def create_dataloaders(
     shuffle: bool = True,
     num_workers: int = 0,
     drop_last: bool = True,
+    max_examples: int = None,  # NEW: Limit dataset size for fast training
 ) -> tuple[DataLoader, DataLoader]:
     """
     Create train and validation dataloaders.
@@ -137,6 +138,7 @@ def create_dataloaders(
         shuffle (bool): Whether to shuffle the training data (default: True)
         num_workers (int): Number of worker processes for data loading (default: 0)
         drop_last (bool): Drop incomplete batches (default: True)
+        max_examples (int): Maximum number of examples to use (for fast demo training)
 
     Returns:
         tuple: (train_dataloader, val_dataloader)
@@ -148,11 +150,19 @@ def create_dataloaders(
         >>> import tiktoken
         >>> dataset = load_dataset("roneneldan/TinyStories", split="train")
         >>> tokenizer = tiktoken.get_encoding("gpt2")
+        >>> # Fast demo training with 10K examples
         >>> train_loader, val_loader = create_dataloaders(
-        ...     dataset, tokenizer, context_length=256, batch_size=16
+        ...     dataset, tokenizer, context_length=64, batch_size=256,
+        ...     max_examples=10000
         ... )
         >>> print(f"Train batches: {len(train_loader)}, Val batches: {len(val_loader)}")
     """
+    # Limit dataset size if requested (for fast demo training)
+    if max_examples and len(dataset_raw) > max_examples:
+        # Use select to create a smaller subset
+        dataset_raw = dataset_raw.select(range(max_examples))
+        print(f"  Using subset of {max_examples:,} examples for faster training")
+    
     # Split dataset into train and validation sets
     train_size = int(train_split * len(dataset_raw))
     val_size = len(dataset_raw) - train_size

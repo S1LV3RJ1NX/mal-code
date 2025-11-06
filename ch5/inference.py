@@ -2,6 +2,7 @@
 Inference Module for the DeepSeek Language Model.
 
 This module provides utilities for loading trained models and generating text.
+Supports both standard and FP8 quantized models.
 """
 
 import torch
@@ -11,13 +12,21 @@ from pathlib import Path
 from components.deepseek import DeepSeekModel
 from utils import encode_text, decode_text, generate, print_model_info
 
+# Import quantization utilities
+try:
+    from components.quantization import convert_linear_to_quantized, check_fp8_support
+    QUANTIZATION_AVAILABLE = True
+except ImportError:
+    QUANTIZATION_AVAILABLE = False
+    print("Note: Quantization module not available. Standard precision will be used.")
+
 
 class TextGenerator:
     """
     Text generator for the DeepSeek Language Model.
     
     This class handles loading a trained model and generating text with
-    various sampling strategies.
+    various sampling strategies. Automatically supports FP8 quantized models.
     
     Args:
         model_path (str): Path to the saved model checkpoint
@@ -68,6 +77,8 @@ class TextGenerator:
         """
         Load model from checkpoint.
         
+        Automatically detects and applies quantization if the model was trained with it.
+        
         Args:
             model_path (str): Path to checkpoint file
         
@@ -78,6 +89,10 @@ class TextGenerator:
         if not checkpoint_path.exists():
             raise FileNotFoundError(f"Checkpoint not found: {model_path}")
         
+        print("\n" + "="*60)
+        print("LOADING MODEL")
+        print("="*60)
+        
         # Load checkpoint
         checkpoint = torch.load(checkpoint_path, map_location=self.device)
         
@@ -87,11 +102,41 @@ class TextGenerator:
         else:
             raise ValueError("No config found in checkpoint")
         
+        # Print model info
+        print(f"Model configuration:")
+        if "n_layers" in config:
+            print(f"  Layers: {config['n_layers']}")
+            print(f"  Embedding dim: {config['emb_dim']}")
+            print(f"  Context length: {config['context_length']}")
+        elif "num_epochs" in config:
+            # This is the training config, need to extract model config
+            # Try to infer from checkpoint keys
+            print("  Detected training config, inferring model config...")
+            # For now, use the config as-is, the model will be created correctly
+        
         # Create model
         model = DeepSeekModel(config)
         
+        # Apply quantization if it was used during training
+        quantization_enabled = checkpoint.get("quantization_enabled", False)
+        if quantization_enabled and QUANTIZATION_AVAILABLE:
+            print("\n✓ Quantization: Enabled (model was trained with FP8)")
+            supports_fp8, device_info = check_fp8_support()
+            print(f"  {device_info}")
+            model = convert_linear_to_quantized(model, use_te=supports_fp8)
+            print("  ✓ Quantized layers applied")
+        else:
+            if quantization_enabled and not QUANTIZATION_AVAILABLE:
+                print("\n⚠ Warning: Model was trained with quantization but module not available")
+                print("  Loading in standard precision (may affect quality)")
+            else:
+                print("\n✓ Quantization: Not used (standard precision)")
+        
         # Load weights
         model.load_state_dict(checkpoint["model_state_dict"])
+        print("✓ Model weights loaded")
+        
+        print("="*60 + "\n")
         
         return model, config
     

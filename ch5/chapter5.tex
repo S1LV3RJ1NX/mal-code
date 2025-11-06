@@ -3758,6 +3758,320 @@ With our understanding of DeepSeek's three core innovations—MLA for memory eff
 
 \section{Quantization: The Final Pillar of DeepSeek}
 
+This section explores quantization not as a post-training optimization, but as a fundamental training methodology. DeepSeek-V3 was trained using FP8 (8-bit floating point) precision from the ground up, achieving near-identical performance to traditional BF16 training while dramatically reducing memory requirements and computational costs.
+
+\subsection{Understanding Quantization: Why It Matters}
+
+Before diving into DeepSeek's innovations, let us establish what quantization means and why it is essential for large language models.
+
+\subsubsection{The Memory Challenge}
+
+Every parameter in a neural network occupies memory. The amount of memory a parameter requires depends on how we \textit{represent} it numerically. Consider a simple parameter value like $\pi = 3.14159...$
+
+In the most common representation, \textbf{floating point 32-bit (FP32)}, this value is stored using 32 bits:
+
+\begin{itemize}
+    \item \textbf{1 bit} for the sign (positive or negative)
+    \item \textbf{8 bits} for the exponent (determines the range)
+    \item \textbf{23 bits} for the mantissa (determines the precision)
+\end{itemize}
+
+This representation provides:
+\begin{itemize}
+    \item \textbf{Range:} $\pm 3.4 \times 10^{38}$
+    \item \textbf{Precision:} Approximately 7 decimal digits
+\end{itemize}
+
+For a model with 671 billion parameters like DeepSeek-V3, storing all parameters in FP32 would require:
+\begin{equation}
+671 \times 10^9 \text{ parameters} \times 4 \text{ bytes/parameter} = 2.68 \text{ TB}
+\end{equation}
+
+This is prohibitively expensive for both training and inference. The situation becomes even more challenging when we consider:
+
+\begin{enumerate}
+    \item \textbf{Optimizer States:} AdamW optimizer maintains first and second moments for each parameter, multiplying memory requirements by 3×
+    \item \textbf{Gradients:} During training, we must store gradients for backpropagation
+    \item \textbf{Activations:} Intermediate layer outputs must be cached for backward pass
+    \item \textbf{KV Cache:} For inference, attention mechanisms require caching keys and values
+\end{enumerate}
+
+\subsubsection{The Quantization Solution}
+
+Quantization reduces memory requirements by representing parameters with fewer bits. The key insight is that we can often reduce precision without significantly degrading model performance.
+
+\paragraph{Common Precision Formats}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|c|c|c|c|}
+\hline
+\textbf{Format} & \textbf{Bits} & \textbf{Sign} & \textbf{Exponent} & \textbf{Mantissa} \\
+\hline
+FP32 & 32 & 1 & 8 & 23 \\
+FP16 & 16 & 1 & 5 & 10 \\
+BF16 & 16 & 1 & 8 & 7 \\
+FP8 (E4M3) & 8 & 1 & 4 & 3 \\
+FP8 (E5M2) & 8 & 1 & 5 & 2 \\
+INT8 & 8 & 1 & - & 7 (integer) \\
+\hline
+\end{tabular}
+\caption{Common numerical precision formats used in deep learning}
+\end{table}
+
+\begin{itemize}
+    \item \textbf{FP16 (Half Precision):} Reduces bits from 32 to 16, cutting memory in half. However, the reduced exponent bits limit the representable range to $\pm 65,504$.
+
+    \item \textbf{BF16 (Brain Float 16):} Maintains the same exponent bits as FP32 (range of $\pm 3.4 \times 10^{38}$) but reduces mantissa bits. This preserves the ability to represent very large and very small numbers, making it more stable for training.
+
+    \item \textbf{FP8:} The most aggressive floating-point quantization. Two variants exist:
+    \begin{itemize}
+        \item \textbf{E4M3:} 4 exponent bits, 3 mantissa bits—prioritizes precision
+        \item \textbf{E5M2:} 5 exponent bits, 2 mantissa bits—prioritizes range
+    \end{itemize}
+
+    \item \textbf{INT8:} Represents only integers in the range $[-127, 127]$, using no exponent bits.
+\end{itemize}
+
+
+\subsubsection{The Quantization Process: A Simple Example}
+
+To understand how quantization works, consider converting a set of FP32 values to INT8:
+
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black,title=Example: FP32 to INT8 Quantization]
+Given the FP32 values: $[-7.59, -3.45, 0.82, 5.31, 10.8]$
+
+\textbf{Step 1: Find the scaling factor}
+\begin{equation}
+\alpha = \max(|\text{values}|) = 10.8
+\end{equation}
+
+\textbf{Step 2: Scale and quantize each value}
+\begin{equation}
+x_{\text{INT8}} = \text{round}\left(\frac{x_{\text{FP32}}}{\alpha} \times 127\right)
+\end{equation}
+
+\textbf{Results:}
+\begin{align*}
+-7.59 &\rightarrow \text{round}\left(\frac{-7.59}{10.8} \times 127\right) = -89 \\
+-3.45 &\rightarrow \text{round}\left(\frac{-3.45}{10.8} \times 127\right) = -41 \\
+0.82 &\rightarrow \text{round}\left(\frac{0.82}{10.8} \times 127\right) = 10 \\
+5.31 &\rightarrow \text{round}\left(\frac{5.31}{10.8} \times 127\right) = 62 \\
+10.8 &\rightarrow \text{round}\left(\frac{10.8}{10.8} \times 127\right) = 127
+\end{align*}
+
+\textbf{Dequantization (when needed):}
+\begin{equation}
+x_{\text{FP32}} \approx \frac{x_{\text{INT8}}}{127} \times \alpha
+\end{equation}
+\end{tcolorbox}
+
+This scaling by the maximum absolute value is crucial—it ensures we fully utilize the available range while preventing overflow. This concept becomes even more important in DeepSeek's fine-grained quantization approach.
+
+\subsubsection{The Trade-off: Memory vs. Accuracy}
+
+Quantization is not free. Reducing precision introduces quantization error:
+
+\begin{equation}
+\text{Error} = |x_{\text{original}} - x_{\text{quantized}}|
+\end{equation}
+
+However, for large language models, the key empirical finding is that:
+
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black,title=The Quantization Sweet Spot]
+With careful implementation, we can achieve:
+\begin{itemize}
+    \item \textbf{75\% memory reduction} (FP32 → FP8)
+    \item \textbf{<0.25\% increase in training loss} (DeepSeek-V3 result)
+\end{itemize}
+
+The memory savings enable larger models, longer context windows, and faster training—benefits that far outweigh the minimal accuracy loss.
+\end{tcolorbox}
+
+\subsection{DeepSeek's FP8 Training Framework}
+
+DeepSeek-V3 pushes quantization to its limits by training entirely in FP8 precision. This is not simply applying quantization to a trained model—it requires rethinking the entire training pipeline. DeepSeek's approach consists of five key innovations:
+
+\begin{enumerate}
+    \item \textbf{Mixed Precision Framework:} Strategically choosing which operations use FP8 vs. higher precision
+    \item \textbf{Fine-Grained Quantization:} Preventing outliers from degrading quantization quality
+    \item \textbf{Increased Accumulation Precision:} Maintaining accuracy in matrix multiplications
+    \item \textbf{Mantissa over Exponents:} Prioritizing precision over range through E4M3 format
+    \item \textbf{Online Quantization:} Computing scaling factors on-the-fly rather than from history
+\end{enumerate}
+
+Let us explore each innovation in detail.
+
+\subsection{Innovation 1: Mixed Precision Framework}
+
+The first key insight is that \textit{not all operations benefit equally from quantization}. Some operations are compute-intensive and memory-hungry (ideal for FP8), while others are numerically sensitive and require higher precision.
+
+\subsubsection{The Forward Pass (Fprop)}
+
+Consider a standard linear layer operation:
+\begin{equation}
+Y = WX + b
+\end{equation}
+
+where $X$ is the input, $W$ are weights, and $Y$ is the output.
+
+\paragraph{DeepSeek's Strategy for Forward Pass:}
+
+\begin{enumerate}
+    \item \textbf{Inputs ($X$):} Convert from BF16 to FP8 on-the-fly
+    \item \textbf{Weights ($W$):} Stored in BF16/FP32, converted to FP8 when needed
+    \item \textbf{Computation:} $Y = W_{\text{FP8}} \cdot X_{\text{FP8}}$ executed in FP8
+    \item \textbf{Accumulation:} Results initially accumulated in FP32
+    \item \textbf{Output ($Y$):} Stored as BF16 for memory efficiency while maintaining range
+\end{enumerate}
+
+\begin{tcolorbox}[colback=green!5!white,colframe=green!75!black,title=Why BF16 for Output Storage?]
+Brain Float 16 (BF16) is chosen because it:
+\begin{itemize}
+    \item Maintains the same \textbf{dynamic range} as FP32 ($\pm 3.4 \times 10^{38}$)
+    \item Uses only \textbf{16 bits} (half the memory of FP32)
+    \item Provides adequate \textbf{precision} (7 mantissa bits) for activations
+\end{itemize}
+This prevents overflow/underflow issues common in FP16 while achieving 2× memory savings over FP32.
+\end{tcolorbox}
+
+\subsubsection{The Backward Pass: Two Gradients}
+
+During backpropagation, we compute two types of gradients:
+
+\paragraph{Activation Gradient (Dgrad):} $\frac{\partial L}{\partial X}$
+
+This gradient flows backward through the network and becomes the gradient for the previous layer. DeepSeek's approach:
+
+\begin{enumerate}
+    \item \textbf{Input Gradient:} Arrives from next layer as BF16, converted to FP8
+    \item \textbf{Weights:} Converted to FP8 (reusing forward pass quantization)
+    \item \textbf{Computation:} $(W_{\text{FP8}})^T \cdot \frac{\partial L}{\partial Y}_{\text{FP8}}$ in FP8
+    \item \textbf{Output:} Stored as BF16 for next layer's backward pass
+\end{enumerate}
+
+\paragraph{Weight Gradient (Wgrad):} $\frac{\partial L}{\partial W}$
+
+This gradient updates the model's parameters. Since optimization is critical, more care is needed:
+
+\begin{enumerate}
+    \item \textbf{Computation:} $X_{\text{FP8}} \cdot \left(\frac{\partial L}{\partial Y}\right)_{\text{FP8}}$ in FP8
+    \item \textbf{Accumulation:} Results accumulated in FP32 for precision
+    \item \textbf{Storage:} Gradients stored as BF16 before optimizer step
+\end{enumerate}
+
+\subsubsection{What Stays in High Precision?}
+
+Not everything can be quantized. DeepSeek maintains original precision (BF16 or FP32) for:
+
+\begin{itemize}
+    \item \textbf{Embedding Layers:} Input and output token embeddings
+    \item \textbf{Layer Normalization:} RMSNorm operations
+    \item \textbf{Attention Computations:} Softmax and attention weights
+    \item \textbf{MoE Gating:} Router decisions for expert selection
+    \item \textbf{Master Weights:} The authoritative copy of parameters in the optimizer
+    \item \textbf{Optimizer States:} Adam's first and second moments
+\end{itemize}
+
+\begin{tcolorbox}[colback=yellow!5!white,colframe=yellow!75!black,title=The Mixed Precision Philosophy]
+\textbf{Core Principle:} Execute expensive matrix multiplications in FP8 (gaining 2× speedup and 2× memory savings), while keeping numerically sensitive operations in higher precision.
+
+This hybrid approach achieves the best of both worlds: the efficiency of FP8 computation with the stability of higher precision where it matters.
+\end{tcolorbox}
+
+\subsection{Innovation 2: Fine-Grained Quantization}
+
+The mixed precision framework tells us \textit{when} to use FP8, but not \textit{how} to quantize effectively. The challenge: \textbf{outliers}.
+
+\subsubsection{The Outlier Problem}
+
+Recall our quantization formula from earlier:
+\begin{equation}
+x_{\text{quantized}} = \text{round}\left(\frac{x}{\alpha} \times 127\right), \quad \alpha = \max(|x|)
+\end{equation}
+
+When a tensor contains an outlier—a single extremely large value—the scaling factor $\alpha$ becomes large, causing all other values to map to a narrow range.
+
+\begin{tcolorbox}[colback=red!5!white,colframe=red!75!black,title=Example: The Outlier Problem]
+Consider quantizing these values to INT8: $[1.2, 0.8, 3.4, 2.1, 100.0]$
+
+\textbf{Naive quantization:}
+\begin{itemize}
+    \item Scaling factor: $\alpha = 100.0$
+    \item Results: $[2, 1, 4, 3, 127]$
+\end{itemize}
+
+The outlier (100.0) forces all normal values into the range $[1, 4]$, wasting most of the available representational capacity $[-127, 127]$ and losing precision.
+\end{tcolorbox}
+
+This problem is pervasive in neural networks: activations often exhibit \textbf{feature outliers}—a few channels with abnormally large magnitudes that dominate the scaling factor.
+
+\subsubsection{The Solution: Fine-Grained Quantization}
+
+DeepSeek's solution is elegant: instead of computing one scaling factor for the entire tensor, compute separate scaling factors for smaller groups of elements.
+
+\paragraph{For Activations (Vectors):} Tile-wise grouping
+
+Activations are typically vectors of shape $(\text{batch}, \text{sequence\_length}, \text{channels})$. DeepSeek groups along the channel dimension:
+
+\begin{equation}
+\text{Tile size} = 1 \times 128 \text{ elements}
+\end{equation}
+
+Each tile of 128 consecutive channels gets its own scaling factor:
+
+\begin{equation}
+\alpha_i = \max(|X_{:, i:i+128}|), \quad i = 0, 128, 256, \ldots
+\end{equation}
+
+\paragraph{For Weights (Matrices):} Block-wise grouping
+
+Weight matrices have shape $(\text{in\_features}, \text{out\_features})$. DeepSeek uses block-wise quantization:
+
+\begin{equation}
+\text{Block size} = 128 \times 128 \text{ elements}
+\end{equation}
+
+Each $128 \times 128$ block gets its own scaling factor:
+
+\begin{equation}
+\alpha_{ij} = \max(|W_{i:i+128, j:j+128}|)
+\end{equation}
+
+\subsection{Innovation 3: Increased Accumulation Precision}
+
+Fine-grained quantization solves the \textit{input} quantization problem. But there's another challenge: what happens during matrix multiplication itself?
+
+When accumulating many small FP8 numbers, limited precision causes underflow. DeepSeek \textbf{periodically promotes} intermediate results to CUDA Cores for high-precision FP32 accumulation rather than accumulating entirely on Tensor Cores.
+
+\subsection{Innovation 4: Mantissa over Exponents}
+
+DeepSeek uses E4M3 format uniformly (prioritizing precision with 3 mantissa bits) rather than hybrid E4M3/E5M2 approaches. This works because fine-grained quantization's per-group scaling effectively "shares" exponent bits across groups, eliminating the need for extra exponent bits.
+
+\subsection{Innovation 5: Online Quantization}
+
+Instead of using historical scaling factors (delayed quantization), DeepSeek computes scaling factors on-the-fly:
+
+\begin{equation}
+\alpha_t = \max(|x_t|)
+\end{equation}
+
+This prevents overflow/underflow when distributions shift during training, at minimal computational cost.
+
+\subsection{Summary: The Complete Picture}
+
+DeepSeek's five quantization innovations work synergistically to enable FP8 training with <0.25\% loss degradation:
+
+\begin{enumerate}
+    \item \textbf{Mixed Precision:} FP8 for compute-intensive General Matrix-Matrix Multiplication (GEMMs), higher precision for sensitive ops
+    \item \textbf{Fine-Grained Quantization:} Per-group scaling isolates outliers
+    \item \textbf{Increased Accumulation:} Periodic promotion to FP32 prevents underflow
+    \item \textbf{E4M3 Format:} Mantissa bits for precision, groups share exponent range
+    \item \textbf{Online Scaling:} Real-time computation prevents distribution shift issues
+\end{enumerate}
+
+Combined with MLA (memory efficiency), MoE (parameter efficiency), and MTP (training efficiency), quantization completes DeepSeek's architecture: a model that achieves state-of-the-art performance at dramatically reduced cost.
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 % Bibliography
