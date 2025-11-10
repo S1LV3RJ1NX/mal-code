@@ -4,7 +4,8 @@ Main Training Script for DeepSeek Language Model with FP8 Quantization.
 This script trains a DeepSeek model on text data with configurable parameters.
 Includes support for FP8 quantization for 2× speedup and 50% memory savings.
 """
-
+# 3038
+import datetime
 import torch
 from datasets import load_dataset
 import tiktoken
@@ -36,13 +37,13 @@ def main():
         "num_epochs": 1,
         "learning_rate": 3e-4,
         "min_lr": 3e-5,
-        "batch_size": 32,
+        "batch_size": 128,
         "max_grad_norm": 1.0,
         "weight_decay": 0.1,
-        "checkpoint_dir": f"checkpoints_{CONFIG_MODE.lower()}",
+        "checkpoint_dir": f"checkpoints_{CONFIG_MODE.lower()}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}",
         "save_every": 1,
-        "use_wandb": True,  # Enable Weights & Biases logging if needed
-        "run_name": f"deepseek-{CONFIG_MODE.lower()}",
+        "use_wandb": False,  # Enable Weights & Biases logging if needed
+        "run_name": f"deepseek-{CONFIG_MODE.lower()}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}",
         'enable_quantization': True,
     }
     

@@ -19,13 +19,12 @@ import torch.nn.functional as F
 from typing import Tuple, Optional
 import warnings
 
-# Check for Transformer Engine (NVIDIA's FP8 library for H100)
 try:
     # sudo apt update && sudo apt install -y build-essential g++ ninja-build
     import transformer_engine.pytorch as te
     from transformer_engine.common.recipe import Format, DelayedScaling
     TE_AVAILABLE = True
-except ImportError:
+except (ImportError, FileNotFoundError, RuntimeError) as e:
     TE_AVAILABLE = False
 
 

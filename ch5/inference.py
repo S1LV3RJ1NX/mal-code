@@ -96,23 +96,42 @@ class TextGenerator:
         # Load checkpoint
         checkpoint = torch.load(checkpoint_path, map_location=self.device)
         
-        # Extract config
-        if "config" in checkpoint:
-            config = checkpoint["config"]
+        # Extract model config
+        if "model_config" in checkpoint:
+            # New format: separate model and training configs
+            config = checkpoint["model_config"]
+            print("  Using model config from checkpoint")
+        elif "config" in checkpoint:
+            # Check if this is a model config or training config
+            checkpoint_config = checkpoint["config"]
+            if "vocab_size" in checkpoint_config and "emb_dim" in checkpoint_config:
+                # This is a model config
+                config = checkpoint_config
+                print("  Using model config from checkpoint")
+            elif "num_epochs" in checkpoint_config:
+                # This is a training config, try to infer model config
+                print("  Detected old checkpoint format with training config only")
+                print("  Attempting to infer model config...")
+                
+                # Try to infer from constants - check if this looks like SMALL config
+                from constants import DEEPSEEK_CONFIG_SMALL, DEEPSEEK_CONFIG
+                
+                # Use SMALL config as default for existing checkpoints
+                config = DEEPSEEK_CONFIG_SMALL.copy()
+                print("  Using DEEPSEEK_CONFIG_SMALL as fallback model config")
+                print("  Note: If this fails, please retrain with updated trainer")
+            else:
+                raise ValueError("Unknown config format in checkpoint")
         else:
             raise ValueError("No config found in checkpoint")
         
         # Print model info
         print(f"Model configuration:")
-        if "n_layers" in config:
-            print(f"  Layers: {config['n_layers']}")
-            print(f"  Embedding dim: {config['emb_dim']}")
-            print(f"  Context length: {config['context_length']}")
-        elif "num_epochs" in config:
-            # This is the training config, need to extract model config
-            # Try to infer from checkpoint keys
-            print("  Detected training config, inferring model config...")
-            # For now, use the config as-is, the model will be created correctly
+        print(f"  Layers: {config['n_layers']}")
+        print(f"  Embedding dim: {config['emb_dim']}")
+        print(f"  Context length: {config['context_length']}")
+        print(f"  Vocab size: {config['vocab_size']}")
+        print(f"  Experts: {config['num_experts']} routed + {config['num_shared_experts']} shared")
         
         # Create model
         model = DeepSeekModel(config)

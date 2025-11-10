@@ -24,4 +24,14 @@ dependencies = [
     "transformers>=4.48.1",
     "wandb>=0.19.4",
     "python-dotenv>=1.0.1",
+    "torch==2.9.0",
+    "transformer_engine[pytorch]==2.8.0",
+    
 ]
+[tool.uv]
+no-build-isolation-package = ["transformer_engine_torch"]
+
+[tool.uv.extra-build-variables]
+transformer_engine = { CXX = "g++" }
+transformer_engine_torch = { CXX = "g++"}
+

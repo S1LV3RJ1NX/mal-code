@@ -510,6 +510,9 @@ class Trainer:
         self.config = config
         self.device = device
         
+        # Store model config for checkpoint saving
+        self.model_config = model.cfg
+        
         # Move model to device
         self.model.to(device)
         
@@ -729,7 +732,9 @@ class Trainer:
             "optimizer_state_dict": self.optimizer.state_dict(),
             "scheduler_state_dict": self.scheduler.state_dict(),
             "best_val_loss": self.best_val_loss,
-            "config": self.config
+            "config": self.config,  # Training config
+            "model_config": self.model_config,  # Model architecture config
+            "quantization_enabled": self.config.get("enable_quantization", False)
         }
         
         save_path = self.checkpoint_dir / filename
