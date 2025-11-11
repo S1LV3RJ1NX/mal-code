@@ -157,6 +157,9 @@ class Trainer:
         self.best_val_loss = float('inf')
         self._optimizer_states_converted = False
         
+        # Max steps cap (for time-constrained training)
+        self.max_steps = config.get("max_steps", None)
+        
         # Loss tracking for stability
         self.loss_history = []
         
@@ -177,6 +180,8 @@ class Trainer:
         print(f"  Optimizer: AdamW (lr={config['learning_rate']:.2e}, fused={device.type=='cuda'})")
         print(f"  Scheduler: CosineAnnealingLR")
         print(f"  FP8 Quantization: {'Enabled' if self.enable_quantization else 'Disabled'}")
+        if self.max_steps:
+            print(f"  Max steps: {self.max_steps:,} (time-constrained training)")
         print(f"  Checkpoint dir: {self.checkpoint_dir}")
     
     def _convert_optimizer_states_to_bf16(self):
@@ -238,6 +243,11 @@ class Trainer:
         )
         
         for batch_idx, (inputs, targets) in enumerate(progress_bar):
+            # Check if we've hit the max steps limit
+            if self.max_steps and self.global_step >= self.max_steps:
+                print(f"\n⏱️  Reached max_steps limit ({self.max_steps:,}). Stopping training.")
+                break
+            
             # Move data to device
             inputs = inputs.to(self.device)
             targets = targets.to(self.device)
@@ -301,8 +311,8 @@ class Trainer:
                     "train/step": self.global_step,
                 })
         
-        avg_loss = total_loss / num_batches
-        avg_perplexity = torch.exp(torch.tensor(avg_loss)).item()
+        avg_loss = total_loss / num_batches if num_batches > 0 else 0
+        avg_perplexity = torch.exp(torch.tensor(avg_loss)).item() if num_batches > 0 else float('inf')
         
         return avg_loss, avg_perplexity
     
@@ -409,10 +419,18 @@ class Trainer:
         print(f"\nDataset:")
         print(f"  Train batches: {len(self.train_loader)}")
         print(f"  Val batches: {len(self.val_loader)}")
+        if self.max_steps:
+            print(f"  Max steps: {self.max_steps:,} (24-hour cap)")
         print()
         
         for epoch in range(self.config["num_epochs"]):
             self.current_epoch = epoch
+            
+            # Check if we've hit max steps before starting epoch
+            if self.max_steps and self.global_step >= self.max_steps:
+                print(f"\n⏱️  Reached max_steps limit ({self.max_steps:,}) before epoch {epoch + 1}.")
+                print("Stopping training early.")
+                break
             
             # Training phase
             train_loss, train_ppl = self.train_epoch()
@@ -424,6 +442,8 @@ class Trainer:
             print(f"\nEpoch {epoch + 1}/{self.config['num_epochs']} Summary:")
             print(f"  Train Loss: {train_loss:.4f} | Train PPL: {train_ppl:.2f}")
             print(f"  Val Loss: {val_loss:.4f} | Val PPL: {val_ppl:.2f}")
+            if self.max_steps:
+                print(f"  Steps completed: {self.global_step:,} / {self.max_steps:,}")
             
             # Log to wandb
             if self.config.get("use_wandb", False) and WANDB_AVAILABLE:
@@ -451,6 +471,7 @@ class Trainer:
         print("TRAINING COMPLETED")
         print("="*70)
         print(f"Best validation loss: {self.best_val_loss:.4f}")
+        print(f"Total steps completed: {self.global_step:,}")
         print(f"Best model saved to: {self.checkpoint_dir / 'best_model.pt'}")
         print("="*70)
     """
