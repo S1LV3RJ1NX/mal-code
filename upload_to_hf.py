@@ -5,6 +5,16 @@ from huggingface_hub import HfApi
 
 HF_TOKEN = os.getenv("HF_TOKEN")
 
+if not HF_TOKEN:
+    print("ERROR: HF_TOKEN environment variable is not set!")
+    print("\nTo fix this, you have two options:")
+    print("\n1. Set the environment variable before running:")
+    print("   export HF_TOKEN='your_token_here'")
+    print("   python upload_to_hf.py")
+    print("\n2. Get your token from: https://huggingface.co/settings/tokens")
+    print("   Make sure to create a token with 'write' permissions")
+    exit(1)
+
 
 def upload_models_to_hf(repo_id: str, weights_dir: str):
     """
@@ -54,9 +64,9 @@ def upload_models_to_hf(repo_id: str, weights_dir: str):
 
 if __name__ == "__main__":
     # Example usage
-    repo_id = "s1lv3rj1nx/ch2"  # Replace with your repo
+    repo_id = "s1lv3rj1nx/ch5"  # Replace with your repo
     weights_dir = (
-        "/home/jovyan/mal-code/ch2/checkpoints/"  # Replace with your weights directory
+        "/home/jovyan/mal-code/ch5/checkpoints/"  # Replace with your weights directory
     )
 
     upload_models_to_hf(repo_id, weights_dir)

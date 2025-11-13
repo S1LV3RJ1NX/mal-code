@@ -9,6 +9,30 @@ or improving model performance.
 from components.common import nn, torch, F, math
 
 
+def _get_weight(layer):
+    """
+    Extract weight tensor from linear layers regardless of implementation.
+    
+    Supports both standard PyTorch layers and quantized variants, abstracting
+    away internal structure differences between nn.Linear and QuantizedLinear.
+    
+    Args:
+        layer: Linear layer (nn.Linear or QuantizedLinear)
+        
+    Returns:
+        torch.Tensor: Weight tensor of shape (out_features, in_features)
+    """
+    if hasattr(layer, 'te_linear'):
+        # QuantizedLinear with Transformer Engine backend
+        return layer.te_linear.weight
+    elif hasattr(layer, 'use_te') and not layer.use_te:
+        # QuantizedLinear with manual FP8 simulation
+        return layer.weight
+    else:
+        # Standard nn.Linear
+        return layer.weight
+
+
 class MultiHeadLatentAttention(nn.Module):
     """
     Multi-Head Latent Attention (MLA) mechanism from DeepSeek.
@@ -99,7 +123,7 @@ class MultiHeadLatentAttention(nn.Module):
         """
         if self.training or self.absorbed_qk_proj is None:
             # Compute absorbed projection: W_q @ W_uk^T
-            absorbed = self.W_q.weight @ self.W_uk.weight  # (n_embd, kv_latent_dim)
+            absorbed = _get_weight(self.W_q) @ _get_weight(self.W_uk)  # (n_embd, kv_latent_dim)
             
             # Reshape for multi-head processing
             # Split along the first dimension (n_embd) into heads

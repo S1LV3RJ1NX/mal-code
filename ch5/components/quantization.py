@@ -402,7 +402,7 @@ def convert_linear_to_quantized(module: nn.Module, use_te: bool = True) -> nn.Mo
     """
     for name, child in module.named_children():
         if isinstance(child, nn.Linear):
-            # Don't quantize output head (per DeepSeek's mixed precision framework)
+            # Skip output projection layers (kept in higher precision)
             if 'out_head' in name or 'lm_head' in name:
                 continue
             
@@ -414,12 +414,19 @@ def convert_linear_to_quantized(module: nn.Module, use_te: bool = True) -> nn.Mo
                 use_te=use_te
             )
             
-            # Copy weights if not using TE
+            # Copy weights
             if not quant_linear.use_te:
+                # Manual implementation - copy to weight parameter
                 with torch.no_grad():
                     quant_linear.weight.copy_(child.weight)
                     if child.bias is not None:
                         quant_linear.bias.copy_(child.bias)
+            else:
+                # Transformer Engine - copy to te_linear's weight
+                with torch.no_grad():
+                    quant_linear.te_linear.weight.copy_(child.weight)
+                    if child.bias is not None and hasattr(quant_linear.te_linear, 'bias'):
+                        quant_linear.te_linear.bias.copy_(child.bias)
             
             setattr(module, name, quant_linear)
         else:

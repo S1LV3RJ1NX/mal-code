@@ -136,24 +136,53 @@ class TextGenerator:
         # Create model
         model = DeepSeekModel(config)
         
-        # Apply quantization if it was used during training
+        # Check if model was trained with quantization
         quantization_enabled = checkpoint.get("quantization_enabled", False)
-        if quantization_enabled and QUANTIZATION_AVAILABLE:
-            print("\n✓ Quantization: Enabled (model was trained with FP8)")
-            supports_fp8, device_info = check_fp8_support()
-            print(f"  {device_info}")
-            model = convert_linear_to_quantized(model, use_te=supports_fp8)
-            print("  ✓ Quantized layers applied")
-        else:
-            if quantization_enabled and not QUANTIZATION_AVAILABLE:
-                print("\n⚠ Warning: Model was trained with quantization but module not available")
-                print("  Loading in standard precision (may affect quality)")
-            else:
-                print("\n✓ Quantization: Not used (standard precision)")
         
-        # Load weights
-        model.load_state_dict(checkpoint["model_state_dict"])
-        print("✓ Model weights loaded")
+        # Check if checkpoint actually has quantized weights by inspecting keys
+        sample_keys = list(checkpoint["model_state_dict"].keys())
+        has_quantized_weights = any('.te_linear.' in key for key in sample_keys)
+        
+        if quantization_enabled and has_quantized_weights:
+            # Case 1: Checkpoint has quantized weights (trained with quantization properly applied)
+            if QUANTIZATION_AVAILABLE:
+                print("\n✓ Quantization: Enabled (checkpoint has FP8 quantized weights)")
+                supports_fp8, device_info = check_fp8_support()
+                print(f"  {device_info}")
+                
+                # Convert model structure to match quantized checkpoint
+                model = convert_linear_to_quantized(model, use_te=supports_fp8)
+                print("  ✓ Quantized model structure created")
+                
+                # Load quantized weights
+                model.load_state_dict(checkpoint["model_state_dict"], strict=True)
+                print("  ✓ Quantized weights loaded successfully")
+                
+                # Ensure model is in BF16 for Transformer Engine
+                model = model.to(torch.bfloat16)
+                print("  ✓ Model prepared for inference")
+            else:
+                print("\n⚠ Warning: Model was trained with quantization but module not available")
+                print("  Cannot load quantized checkpoint without quantization support")
+                print("  Please install transformer-engine or retrain without quantization")
+                raise RuntimeError("Quantization module required to load this checkpoint")
+        
+        elif quantization_enabled and not has_quantized_weights:
+            # Case 2: Flag says quantized but weights are standard (bug in old trainer)
+            print("\n⚠ Note: Checkpoint marked as quantized but contains standard weights")
+            print("  Loading as standard precision model")
+            
+            # Load weights directly (they're standard weights)
+            model.load_state_dict(checkpoint["model_state_dict"], strict=True)
+            print("  ✓ Weights loaded successfully (standard precision)")
+        
+        else:
+            # Case 3: Standard precision model
+            print("\n✓ Quantization: Not used (standard precision)")
+            
+            # Load weights directly
+            model.load_state_dict(checkpoint["model_state_dict"], strict=True)
+            print("  ✓ Weights loaded successfully")
         
         print("="*60 + "\n")
         

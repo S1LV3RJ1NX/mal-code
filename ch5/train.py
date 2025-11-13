@@ -19,7 +19,7 @@ from constants import DEEPSEEK_CONFIG, DEEPSEEK_CONFIG_SMALL
 from dataset import create_dataloaders
 from trainer import Trainer
 from utils import print_model_info
-# 28700
+# 96350
 
 def create_diverse_dataset(target_epochs: int = 3, seed: int = 42):
     """
@@ -153,7 +153,7 @@ def main():
         "num_epochs": TARGET_EPOCHS,
         "learning_rate": 3e-4,
         "min_lr": 3e-5,
-        "batch_size": 256,
+        "batch_size": 512,
         "max_grad_norm": 1.0,
         "weight_decay": 0.1,  # Keep regularization for small dataset
         "checkpoint_dir": f"checkpoints_{CONFIG_MODE.lower()}_diverse_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}",
@@ -309,17 +309,7 @@ def main():
     # =========================================================================
     # Train Model
     # =========================================================================
-    
-    print("\n" + "="*70)
-    print("STARTING TRAINING")
-    print("="*70)
-    print(f"Configuration: {CONFIG_MODE}")
-    print(f"Epochs: {TRAINING_CONFIG['num_epochs']}")
-    print(f"Learning rate: {TRAINING_CONFIG['learning_rate']:.2e}")
-    print(f"Batch size: {TRAINING_CONFIG['batch_size']}")
-    print(f"Total training steps: {TRAINING_CONFIG['num_epochs'] * len(train_loader):,}")
-    print(f"FP8 Quantization: {'Enabled' if TRAINING_CONFIG['enable_quantization'] else 'Disabled'}")
-    print("="*70)
+    # Note: trainer.train() will print its own "STARTING TRAINING" header
     
     try:
         trainer.train()
