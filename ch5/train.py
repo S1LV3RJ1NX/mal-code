@@ -19,7 +19,6 @@ from constants import DEEPSEEK_CONFIG, DEEPSEEK_CONFIG_SMALL
 from dataset import create_dataloaders
 from trainer import Trainer
 from utils import print_model_info
-# 96350
 
 def create_diverse_dataset(target_epochs: int = 3, seed: int = 42):
     """
@@ -60,10 +59,6 @@ def create_diverse_dataset(target_epochs: int = 3, seed: int = 42):
         print(f"Target: 2 epochs with ~5,000 examples (~3,768 steps/epoch)")
     else:
         raise ValueError("target_epochs must be 2 or 3")
-    
-    print(f"Expected total training time: ≤ 24 hours on H100 NVL")
-    print(f"Estimated steps: ~{7536 // target_epochs * target_epochs:,} total")
-    print()
     
     datasets_to_mix = []
     
@@ -143,7 +138,7 @@ def main():
     # Training Configuration with 24-Hour Optimization
     # =========================================================================
     # Based on measured baseline: 11.47 s/step → 7,536 steps fit in 24 hours
-    TARGET_EPOCHS = 3  # Change to 2 for longer training per epoch
+    TARGET_EPOCHS = 3  
     MAX_TOTAL_STEPS = 7536  # Hard cap for 24-hour window
     
     # Add slight dropout increase to combat overfitting on smaller dataset

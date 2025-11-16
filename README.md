@@ -35,3 +35,5 @@ For example, to run the code for chapter 1, go to the `ch1` folder and follow th
 - [Chapter 1: A Journey into the Heart of Transformers](./ch1/README.md)
 - [Chapter 2: LLMs are Unsupervised Multitask Learners](./ch2/README.md)
 - [Chapter 3: The Llama3 Herd of Models](./ch3/README.md)
+- [Chapter 4: KV Cache and Attention Mechanisms Evolution](./ch4/README.md)
+- [Chapter 5: DeepSeek - The Final Adventure](./ch5/README.md)

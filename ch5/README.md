@@ -72,43 +72,95 @@ This diverse dataset prevents overfitting and improves generalization.
 
 ### Training from Scratch
 
-To train the model from scratch with FP8 quantization support:
+To train the model from scratch, you have two options:
+
+#### Option 1: FP8 Quantized Training (H100 GPUs)
+
+For H100 GPUs with FP8 support, enable quantization in `train.py` (around line 159):
+
+```python
+# In train.py, locate TRAINING_CONFIG and set:
+TRAINING_CONFIG = {
+    ...
+    "enable_quantization": True,  # Enable FP8 quantization for H100
+    ...
+}
+```
+
+Then run:
 
 ```bash
 cd ch5
 python train.py
 ```
 
-The training script includes:
-- FP8 quantization for 2× speedup and 50% memory savings
+**Benefits of FP8 training:**
+- 2× training speedup
+- 50% memory savings
+- Maintains model quality with minimal accuracy loss
+
+#### Option 2: Standard Precision Training (All GPUs)
+
+For GPUs without FP8 support (A100, V100, RTX series, etc.), keep quantization disabled (default):
+
+```python
+# In train.py, TRAINING_CONFIG should have:
+TRAINING_CONFIG = {
+    ...
+    "enable_quantization": False,  # Use standard mixed precision (FP16/FP32)
+    ...
+}
+```
+
+Then run:
+
+```bash
+cd ch5
+python train.py
+```
+
+**The training script includes:**
 - Gradient clipping to prevent exploding gradients
 - Cosine annealing learning rate schedule
 - Automatic checkpointing and WandB logging
 - Mixed-precision training with automatic scaling
+- Multi-dataset training (TinyStories, WikiText, OpenWebText)
 
 ### Using Pre-trained Weights
 
-Pre-trained weights are available on [Hugging Face](https://huggingface.co/s1lv3rj1nx/ch5). Download the `best_model.pth` file and place it in the `ch5/checkpoints` directory.
+We provide two sets of pre-trained weights:
+
+1. **FP8 Quantized Model** (recommended for H100 GPUs): [https://huggingface.co/s1lv3rj1nx/ch5-fp8](https://huggingface.co/s1lv3rj1nx/ch5-fp8)
+   - Trained with FP8 quantization on H100 GPU
+   - 2× faster training and 50% memory savings
+   - Download `best_model.pt` and place it in `ch5/checkpoints_small-fp8/`
+
+2. **Standard Precision Model** (for GPUs without FP8 support): [https://huggingface.co/s1lv3rj1nx/ch5](https://huggingface.co/s1lv3rj1nx/ch5)
+   - Trained with standard mixed precision (FP16/FP32)
+   - Compatible with all modern GPUs (A100, V100, RTX series, etc.)
+   - Download `best_model.pth` and place it in `ch5/checkpoints/`
 
 ## Training Results and Analysis
 
-### Training Plots
+### Training Plots (FP8 Training on H100)
+
+The following plots show training metrics from the FP8 quantized model trained on NVIDIA H100 GPU:
 
 **Training Loss:**
 
-![Train epoch loss](https://cdn-uploads.huggingface.co/production/uploads/62790519541f3d2dfa79a6cb/osEBfsLx4DrCOnLA3X_6U.png)
+![Train epoch loss](https://cdn-uploads.huggingface.co/production/uploads/62790519541f3d2dfa79a6cb/2hCHxZ3xT4dPuY2Db2HEv.png)
 
 **Training Perplexity:**
 
-![Train epoch perplexity](https://cdn-uploads.huggingface.co/production/uploads/62790519541f3d2dfa79a6cb/RGSl63c5GhHLw3rloG102.png)
+![Train epoch perplexity](https://cdn-uploads.huggingface.co/production/uploads/62790519541f3d2dfa79a6cb/QgMvpLLIRXrWTI5SbTW_I.png)
 
 **Validation Loss:**
 
-![Val epoch loss](https://cdn-uploads.huggingface.co/production/uploads/62790519541f3d2dfa79a6cb/sS4lB1Vykoarf_RzHCYoK.png)
+![Val epoch loss](https://cdn-uploads.huggingface.co/production/uploads/62790519541f3d2dfa79a6cb/o7rtcOdjUvnYufw6bVuL2.png)
 
 **Validation Perplexity:**
 
-![Val epoch perplexity](https://cdn-uploads.huggingface.co/production/uploads/62790519541f3d2dfa79a6cb/wuj38q5U-vSUCW3wnbVji.png)
+![Val epoch perplexity](https://cdn-uploads.huggingface.co/production/uploads/62790519541f3d2dfa79a6cb/_mc7L0WeOKzJpa_4lV5Yd.png)
 
 ### Understanding the Training Dynamics
 
@@ -165,23 +217,26 @@ To generate text using the trained model:
 
 ```bash
 cd ch5
-python inference.py
+python inference.py --model_path checkpoints_small-fp8/best_model.pt --prompt "Once upon a time" --max_new_tokens 100
 ```
 
 The model can generate text in various styles depending on the input prompt, thanks to the diverse training data.
 
 ### Sample Output
 
-```
-Initial text: Once upon a time
+Here's an example of text generation using the FP8-trained model:
 
-Generated Text:
---------------------------------------------------
-Once upon a time, there was a little girl named Lucy. She loved to play 
-in the garden with her toys. One sunny day, Lucy found a mysterious box 
-hidden behind the old oak tree. Inside the box was a shiny golden key...
---------------------------------------------------
+```bash
+# Command
+python inference.py --model_path checkpoints_small-fp8/best_model.pt --prompt "Once upon a time" --max_new_tokens 100
+
+# Output
+Once upon a time, there was a little bird named Benny. Benny loved to eat food for food. One day, Benny went for a nearby tree and Benny said, "Benny!" Benny! You were so happy to take a new home," said.
+
+Bob thought about a moment and said, "I know! Now let's go home and see the bird." Benny felt happy and said, "Thank you, Benny. We go on a while, Benny! And we go home, we always shared
 ```
+
+**Note**: The model generates coherent short stories with character interactions and dialogue, demonstrating its understanding of narrative structure learned from the TinyStories dataset. While the output shows some repetition and grammatical quirks (common in small models trained on limited data), it successfully maintains context and generates contextually appropriate text.
 
 ## Model Configuration
 

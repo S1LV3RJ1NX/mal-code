@@ -58,8 +58,6 @@ DEEPSEEK_CONFIG_SMALL = {
     "use_mtp": True,
     "mtp_depth": 3,
     "mtp_weight": 0.3,
-    # Quantization Parameters (NEW!)
-    "enable_quantization": True,
     # Memory Optimization Parameters
     "use_gradient_checkpointing": False,  # Disable for speed
     "mixed_precision": True,             # Use FP16/BF16 for memory savings
