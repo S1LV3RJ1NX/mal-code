@@ -72,9 +72,9 @@ The code here is fully open source. The book provides the explanations, intuitio
 
 A free sample covering the Preface, full Table of Contents, and Chapter 1 through Causal Attention is available on the book page.
 
-## Errata and Updates
+## Errata
 
-Found an error? Open an issue or check [ERRATA.md](ERRATA.md). Reader-contributed fixes are tracked in [CHANGELOG.md](CHANGELOG.md).
+Found an error? [Open an issue](https://github.com/S1LV3RJ1NX/mal-code/issues) on this repo.
 
 ## Citation
 
